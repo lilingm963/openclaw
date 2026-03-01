@@ -120,3 +120,26 @@ dist/protocol.schema.json
 
 # Synthing
 **/.stfolder/
+
+# ====== Local Personal Config (fork-specific) ======
+# These files are for your local setup and should not be committed
+config.local.*
+*.local.json
+.env.local
+.env.*.local
+
+# Personal credentials and secrets (NEVER COMMIT)
+secrets/
+.secrets/
+credentials.local.*
+*.pem
+*.key
+
+# Personal notes and docs
+NOTES.md
+TODO.md
+scratch/
+
+# Local development overrides
+docker-compose.override.yml
+*.override.json
