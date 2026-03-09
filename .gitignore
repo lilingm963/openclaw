@@ -130,8 +130,8 @@ config.local.*
 .env.*.local
 
 # Personal credentials and secrets (NEVER COMMIT)
-secrets/
-.secrets/
+/secrets/
+/.secrets/
 credentials.local.*
 *.pem
 *.key
