@@ -27,7 +27,7 @@ const DEFAULT_CODEX_ARGS = [
   "--color",
   "never",
   "--sandbox",
-  "read-only",
+  "workspace-write",
   "--skip-git-repo-check",
 ];
 const DEFAULT_CLEAR_ENV = ["ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY_OLD"];

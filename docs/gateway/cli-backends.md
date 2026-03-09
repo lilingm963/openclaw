@@ -196,15 +196,15 @@ OpenClaw ships a default for `claude-cli`:
 OpenClaw also ships a default for `codex-cli`:
 
 - `command: "codex"`
-- `args: ["exec","--json","--color","never","--sandbox","read-only","--skip-git-repo-check"]`
-- `resumeArgs: ["exec","resume","{sessionId}","--color","never","--sandbox","read-only","--skip-git-repo-check"]`
+- `args: ["exec","--json","--color","never","--sandbox","workspace-write","--skip-git-repo-check"]`
+- `resumeArgs: ["exec","resume","{sessionId}","--color","never","--sandbox","workspace-write","--skip-git-repo-check"]`
 - `output: "jsonl"`
 - `resumeOutput: "text"`
 - `modelArg: "--model"`
 - `imageArg: "--image"`
 - `sessionMode: "existing"`
 
-Override only if needed (common: absolute `command` path).
+Override only if needed (common: absolute `command` path or a different Codex sandbox mode).
 
 ## Limitations
 

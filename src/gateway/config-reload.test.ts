@@ -189,6 +189,12 @@ describe("buildGatewayReloadPlan", () => {
     expect(plan.restartGateway).toBe(true);
   });
 
+  it("restarts the gateway for tool policy changes", () => {
+    const plan = buildGatewayReloadPlan(["tools.alsoAllow"]);
+    expect(plan.restartGateway).toBe(true);
+    expect(plan.restartReasons).toContain("tools.alsoAllow");
+  });
+
   it.each([
     {
       path: "gateway.channelHealthCheckMinutes",
@@ -207,6 +213,11 @@ describe("buildGatewayReloadPlan", () => {
       path: "gateway.remote.url",
       expectRestartGateway: false,
       expectNoopPath: "gateway.remote.url",
+    },
+    {
+      path: "tools.alsoAllow",
+      expectRestartGateway: true,
+      expectRestartReason: "tools.alsoAllow",
     },
     {
       path: "unknownField",

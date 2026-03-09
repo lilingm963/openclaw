@@ -75,7 +75,10 @@ const BASE_RELOAD_RULES_TAIL: ReloadRule[] = [
   { prefix: "wizard", kind: "none" },
   { prefix: "logging", kind: "none" },
   { prefix: "agents", kind: "none" },
-  { prefix: "tools", kind: "none" },
+  // Tool policy changes affect agent runs, but external channel providers can
+  // hold startup-time config snapshots. Force a restart so those providers do
+  // not continue serving stale tool availability into existing sessions.
+  { prefix: "tools", kind: "restart" },
   { prefix: "bindings", kind: "none" },
   { prefix: "audio", kind: "none" },
   { prefix: "agent", kind: "none" },
