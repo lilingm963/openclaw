@@ -1,8 +1,15 @@
 import { Type, type Static } from "@sinclair/typebox";
 
+const UserOpenId = Type.Optional(
+  Type.String({
+    description: "Feishu user open_id for user-identity API calls (uses OAuth user_access_token)",
+  }),
+);
+
 export const FeishuWikiSchema = Type.Union([
   Type.Object({
     action: Type.Literal("spaces"),
+    userOpenId: UserOpenId,
   }),
   Type.Object({
     action: Type.Literal("nodes"),
@@ -10,15 +17,18 @@ export const FeishuWikiSchema = Type.Union([
     parent_node_token: Type.Optional(
       Type.String({ description: "Parent node token (optional, omit for root)" }),
     ),
+    userOpenId: UserOpenId,
   }),
   Type.Object({
     action: Type.Literal("get"),
     token: Type.String({ description: "Wiki node token (from URL /wiki/XXX)" }),
+    userOpenId: UserOpenId,
   }),
   Type.Object({
     action: Type.Literal("search"),
     query: Type.String({ description: "Search query" }),
     space_id: Type.Optional(Type.String({ description: "Limit search to this space (optional)" })),
+    userOpenId: UserOpenId,
   }),
   Type.Object({
     action: Type.Literal("create"),
@@ -32,6 +42,7 @@ export const FeishuWikiSchema = Type.Union([
     parent_node_token: Type.Optional(
       Type.String({ description: "Parent node token (optional, omit for root)" }),
     ),
+    userOpenId: UserOpenId,
   }),
   Type.Object({
     action: Type.Literal("move"),
@@ -43,12 +54,14 @@ export const FeishuWikiSchema = Type.Union([
     target_parent_token: Type.Optional(
       Type.String({ description: "Target parent node token (optional, root if omitted)" }),
     ),
+    userOpenId: UserOpenId,
   }),
   Type.Object({
     action: Type.Literal("rename"),
     space_id: Type.String({ description: "Knowledge space ID" }),
     node_token: Type.String({ description: "Node token to rename" }),
     title: Type.String({ description: "New title" }),
+    userOpenId: UserOpenId,
   }),
 ]);
 

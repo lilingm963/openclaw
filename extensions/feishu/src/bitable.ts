@@ -2,7 +2,8 @@ import type * as Lark from "@larksuiteoapi/node-sdk";
 import { Type } from "@sinclair/typebox";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/feishu";
 import { listEnabledFeishuAccounts } from "./accounts.js";
-import { createFeishuToolClient } from "./tool-account.js";
+import { createFeishuToolContext } from "./tool-account.js";
+import type { FeishuToolContext } from "./types.js";
 
 // ============ Helpers ============
 
@@ -14,6 +15,8 @@ function json(data: unknown) {
 }
 
 type LarkResponse<T = unknown> = { code?: number; msg?: string; data?: T };
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK IRequestOptions uses opaque symbol keys
+type RequestOptions = any;
 
 export class LarkApiError extends Error {
   readonly code: number;
@@ -90,10 +93,17 @@ function parseBitableUrl(url: string): { token: string; tableId?: string; isWiki
 }
 
 /** Get app_token from wiki node_token */
-async function getAppTokenFromWiki(client: Lark.Client, nodeToken: string): Promise<string> {
-  const res = await client.wiki.space.getNode({
-    params: { token: nodeToken },
-  });
+async function getAppTokenFromWiki(
+  client: Lark.Client,
+  nodeToken: string,
+  options?: RequestOptions,
+): Promise<string> {
+  const res = await client.wiki.space.getNode(
+    {
+      params: { token: nodeToken },
+    },
+    options,
+  );
   ensureLarkSuccess(res, "wiki.space.getNode", { nodeToken });
 
   const node = res.data?.node;
@@ -108,7 +118,7 @@ async function getAppTokenFromWiki(client: Lark.Client, nodeToken: string): Prom
 }
 
 /** Get bitable metadata from URL (handles both /base/ and /wiki/ URLs) */
-async function getBitableMeta(client: Lark.Client, url: string) {
+export async function getBitableMeta(client: Lark.Client, url: string, options?: RequestOptions) {
   const parsed = parseBitableUrl(url);
   if (!parsed) {
     throw new Error("Invalid URL format. Expected /base/XXX or /wiki/XXX URL");
@@ -116,23 +126,29 @@ async function getBitableMeta(client: Lark.Client, url: string) {
 
   let appToken: string;
   if (parsed.isWiki) {
-    appToken = await getAppTokenFromWiki(client, parsed.token);
+    appToken = await getAppTokenFromWiki(client, parsed.token, options);
   } else {
     appToken = parsed.token;
   }
 
   // Get bitable app info
-  const res = await client.bitable.app.get({
-    path: { app_token: appToken },
-  });
+  const res = await client.bitable.app.get(
+    {
+      path: { app_token: appToken },
+    },
+    options,
+  );
   ensureLarkSuccess(res, "bitable.app.get", { appToken });
 
   // List tables if no table_id specified
   let tables: { table_id: string; name: string }[] = [];
   if (!parsed.tableId) {
-    const tablesRes = await client.bitable.appTable.list({
-      path: { app_token: appToken },
-    });
+    const tablesRes = await client.bitable.appTable.list(
+      {
+        path: { app_token: appToken },
+      },
+      options,
+    );
     if (tablesRes.code === 0) {
       tables = (tablesRes.data?.items ?? []).map((t) => ({
         table_id: t.table_id!,
@@ -153,10 +169,18 @@ async function getBitableMeta(client: Lark.Client, url: string) {
   };
 }
 
-async function listFields(client: Lark.Client, appToken: string, tableId: string) {
-  const res = await client.bitable.appTableField.list({
-    path: { app_token: appToken, table_id: tableId },
-  });
+export async function listFields(
+  client: Lark.Client,
+  appToken: string,
+  tableId: string,
+  options?: RequestOptions,
+) {
+  const res = await client.bitable.appTableField.list(
+    {
+      path: { app_token: appToken, table_id: tableId },
+    },
+    options,
+  );
   ensureLarkSuccess(res, "bitable.appTableField.list", { appToken, tableId });
 
   const fields = res.data?.items ?? [];
@@ -173,20 +197,24 @@ async function listFields(client: Lark.Client, appToken: string, tableId: string
   };
 }
 
-async function listRecords(
+export async function listRecords(
   client: Lark.Client,
   appToken: string,
   tableId: string,
   pageSize?: number,
   pageToken?: string,
+  options?: RequestOptions,
 ) {
-  const res = await client.bitable.appTableRecord.list({
-    path: { app_token: appToken, table_id: tableId },
-    params: {
-      page_size: pageSize ?? 100,
-      ...(pageToken && { page_token: pageToken }),
+  const res = await client.bitable.appTableRecord.list(
+    {
+      path: { app_token: appToken, table_id: tableId },
+      params: {
+        page_size: pageSize ?? 100,
+        ...(pageToken && { page_token: pageToken }),
+      },
     },
-  });
+    options,
+  );
   ensureLarkSuccess(res, "bitable.appTableRecord.list", { appToken, tableId, pageSize });
 
   return {
@@ -197,10 +225,19 @@ async function listRecords(
   };
 }
 
-async function getRecord(client: Lark.Client, appToken: string, tableId: string, recordId: string) {
-  const res = await client.bitable.appTableRecord.get({
-    path: { app_token: appToken, table_id: tableId, record_id: recordId },
-  });
+async function getRecord(
+  client: Lark.Client,
+  appToken: string,
+  tableId: string,
+  recordId: string,
+  options?: RequestOptions,
+) {
+  const res = await client.bitable.appTableRecord.get(
+    {
+      path: { app_token: appToken, table_id: tableId, record_id: recordId },
+    },
+    options,
+  );
   ensureLarkSuccess(res, "bitable.appTableRecord.get", { appToken, tableId, recordId });
 
   return {
@@ -213,12 +250,16 @@ async function createRecord(
   appToken: string,
   tableId: string,
   fields: Record<string, unknown>,
+  options?: RequestOptions,
 ) {
-  const res = await client.bitable.appTableRecord.create({
-    path: { app_token: appToken, table_id: tableId },
-    // oxlint-disable-next-line typescript/no-explicit-any
-    data: { fields: fields as any },
-  });
+  const res = await client.bitable.appTableRecord.create(
+    {
+      path: { app_token: appToken, table_id: tableId },
+      // oxlint-disable-next-line typescript/no-explicit-any
+      data: { fields: fields as any },
+    },
+    options,
+  );
   ensureLarkSuccess(res, "bitable.appTableRecord.create", { appToken, tableId });
 
   return {
@@ -242,14 +283,18 @@ async function cleanupNewBitable(
   tableId: string,
   tableName: string,
   logger: CleanupLogger,
+  options?: RequestOptions,
 ): Promise<{ cleanedRows: number; cleanedFields: number }> {
   let cleanedRows = 0;
   let cleanedFields = 0;
 
   // Step 1: Clean up default fields
-  const fieldsRes = await client.bitable.appTableField.list({
-    path: { app_token: appToken, table_id: tableId },
-  });
+  const fieldsRes = await client.bitable.appTableField.list(
+    {
+      path: { app_token: appToken, table_id: tableId },
+    },
+    options,
+  );
 
   if (fieldsRes.code === 0 && fieldsRes.data?.items) {
     // Step 1a: Rename primary field to the table name (works for both Feishu and Lark)
@@ -257,17 +302,20 @@ async function cleanupNewBitable(
     if (primaryField?.field_id) {
       try {
         const newFieldName = tableName.length <= 20 ? tableName : "Name";
-        await client.bitable.appTableField.update({
-          path: {
-            app_token: appToken,
-            table_id: tableId,
-            field_id: primaryField.field_id,
+        await client.bitable.appTableField.update(
+          {
+            path: {
+              app_token: appToken,
+              table_id: tableId,
+              field_id: primaryField.field_id,
+            },
+            data: {
+              field_name: newFieldName,
+              type: 1,
+            },
           },
-          data: {
-            field_name: newFieldName,
-            type: 1,
-          },
-        });
+          options,
+        );
         cleanedFields++;
       } catch (err) {
         logger.debug(`Failed to rename primary field: ${err}`);
@@ -282,13 +330,16 @@ async function cleanupNewBitable(
     for (const field of defaultFieldsToDelete) {
       if (field.field_id) {
         try {
-          await client.bitable.appTableField.delete({
-            path: {
-              app_token: appToken,
-              table_id: tableId,
-              field_id: field.field_id,
+          await client.bitable.appTableField.delete(
+            {
+              path: {
+                app_token: appToken,
+                table_id: tableId,
+                field_id: field.field_id,
+              },
             },
-          });
+            options,
+          );
           cleanedFields++;
         } catch (err) {
           logger.debug(`Failed to delete default field ${field.field_name}: ${err}`);
@@ -298,10 +349,13 @@ async function cleanupNewBitable(
   }
 
   // Step 2: Delete empty placeholder rows (batch when possible)
-  const recordsRes = await client.bitable.appTableRecord.list({
-    path: { app_token: appToken, table_id: tableId },
-    params: { page_size: 100 },
-  });
+  const recordsRes = await client.bitable.appTableRecord.list(
+    {
+      path: { app_token: appToken, table_id: tableId },
+      params: { page_size: 100 },
+    },
+    options,
+  );
 
   if (recordsRes.code === 0 && recordsRes.data?.items) {
     const emptyRecordIds = recordsRes.data.items
@@ -311,18 +365,24 @@ async function cleanupNewBitable(
 
     if (emptyRecordIds.length > 0) {
       try {
-        await client.bitable.appTableRecord.batchDelete({
-          path: { app_token: appToken, table_id: tableId },
-          data: { records: emptyRecordIds },
-        });
+        await client.bitable.appTableRecord.batchDelete(
+          {
+            path: { app_token: appToken, table_id: tableId },
+            data: { records: emptyRecordIds },
+          },
+          options,
+        );
         cleanedRows = emptyRecordIds.length;
       } catch {
         // Fallback: delete one by one if batch API is unavailable
         for (const recordId of emptyRecordIds) {
           try {
-            await client.bitable.appTableRecord.delete({
-              path: { app_token: appToken, table_id: tableId, record_id: recordId },
-            });
+            await client.bitable.appTableRecord.delete(
+              {
+                path: { app_token: appToken, table_id: tableId, record_id: recordId },
+              },
+              options,
+            );
             cleanedRows++;
           } catch (err) {
             logger.debug(`Failed to delete empty row ${recordId}: ${err}`);
@@ -340,13 +400,17 @@ async function createApp(
   name: string,
   folderToken?: string,
   logger?: CleanupLogger,
+  options?: RequestOptions,
 ) {
-  const res = await client.bitable.app.create({
-    data: {
-      name,
-      ...(folderToken && { folder_token: folderToken }),
+  const res = await client.bitable.app.create(
+    {
+      data: {
+        name,
+        ...(folderToken && { folder_token: folderToken }),
+      },
     },
-  });
+    options,
+  );
   ensureLarkSuccess(res, "bitable.app.create", { name, folderToken });
 
   const appToken = res.data?.app?.app_token;
@@ -360,13 +424,16 @@ async function createApp(
   let cleanedFields = 0;
 
   try {
-    const tablesRes = await client.bitable.appTable.list({
-      path: { app_token: appToken },
-    });
+    const tablesRes = await client.bitable.appTable.list(
+      {
+        path: { app_token: appToken },
+      },
+      options,
+    );
     if (tablesRes.code === 0 && tablesRes.data?.items && tablesRes.data.items.length > 0) {
       tableId = tablesRes.data.items[0].table_id ?? undefined;
       if (tableId) {
-        const cleanup = await cleanupNewBitable(client, appToken, tableId, name, log);
+        const cleanup = await cleanupNewBitable(client, appToken, tableId, name, log, options);
         cleanedRows = cleanup.cleanedRows;
         cleanedFields = cleanup.cleanedFields;
       }
@@ -395,15 +462,19 @@ async function createField(
   fieldName: string,
   fieldType: number,
   property?: Record<string, unknown>,
+  options?: RequestOptions,
 ) {
-  const res = await client.bitable.appTableField.create({
-    path: { app_token: appToken, table_id: tableId },
-    data: {
-      field_name: fieldName,
-      type: fieldType,
-      ...(property && { property }),
+  const res = await client.bitable.appTableField.create(
+    {
+      path: { app_token: appToken, table_id: tableId },
+      data: {
+        field_name: fieldName,
+        type: fieldType,
+        ...(property && { property }),
+      },
     },
-  });
+    options,
+  );
   ensureLarkSuccess(res, "bitable.appTableField.create", {
     appToken,
     tableId,
@@ -425,12 +496,16 @@ async function updateRecord(
   tableId: string,
   recordId: string,
   fields: Record<string, unknown>,
+  options?: RequestOptions,
 ) {
-  const res = await client.bitable.appTableRecord.update({
-    path: { app_token: appToken, table_id: tableId, record_id: recordId },
-    // oxlint-disable-next-line typescript/no-explicit-any
-    data: { fields: fields as any },
-  });
+  const res = await client.bitable.appTableRecord.update(
+    {
+      path: { app_token: appToken, table_id: tableId, record_id: recordId },
+      // oxlint-disable-next-line typescript/no-explicit-any
+      data: { fields: fields as any },
+    },
+    options,
+  );
   ensureLarkSuccess(res, "bitable.appTableRecord.update", { appToken, tableId, recordId });
 
   return {
@@ -440,10 +515,17 @@ async function updateRecord(
 
 // ============ Schemas ============
 
+const UserOpenId = Type.Optional(
+  Type.String({
+    description: "Feishu user open_id for user-identity API calls (uses OAuth user_access_token)",
+  }),
+);
+
 const GetMetaSchema = Type.Object({
   url: Type.String({
     description: "Bitable URL. Supports both formats: /base/XXX?table=YYY or /wiki/XXX?table=YYY",
   }),
+  userOpenId: UserOpenId,
 });
 
 const ListFieldsSchema = Type.Object({
@@ -451,6 +533,7 @@ const ListFieldsSchema = Type.Object({
     description: "Bitable app token (use feishu_bitable_get_meta to get from URL)",
   }),
   table_id: Type.String({ description: "Table ID (from URL: ?table=YYY)" }),
+  userOpenId: UserOpenId,
 });
 
 const ListRecordsSchema = Type.Object({
@@ -468,6 +551,7 @@ const ListRecordsSchema = Type.Object({
   page_token: Type.Optional(
     Type.String({ description: "Pagination token from previous response" }),
   ),
+  userOpenId: UserOpenId,
 });
 
 const GetRecordSchema = Type.Object({
@@ -476,6 +560,7 @@ const GetRecordSchema = Type.Object({
   }),
   table_id: Type.String({ description: "Table ID (from URL: ?table=YYY)" }),
   record_id: Type.String({ description: "Record ID to retrieve" }),
+  userOpenId: UserOpenId,
 });
 
 const CreateRecordSchema = Type.Object({
@@ -487,6 +572,7 @@ const CreateRecordSchema = Type.Object({
     description:
       "Field values keyed by field name. Format by type: Text='string', Number=123, SingleSelect='Option', MultiSelect=['A','B'], DateTime=timestamp_ms, User=[{id:'ou_xxx'}], URL={text:'Display',link:'https://...'}",
   }),
+  userOpenId: UserOpenId,
 });
 
 const CreateAppSchema = Type.Object({
@@ -498,6 +584,7 @@ const CreateAppSchema = Type.Object({
       description: "Optional folder token to place the Bitable in a specific folder",
     }),
   ),
+  userOpenId: UserOpenId,
 });
 
 const CreateFieldSchema = Type.Object({
@@ -517,6 +604,7 @@ const CreateFieldSchema = Type.Object({
       description: "Field-specific properties (e.g., options for SingleSelect, format for Number)",
     }),
   ),
+  userOpenId: UserOpenId,
 });
 
 const UpdateRecordSchema = Type.Object({
@@ -528,6 +616,7 @@ const UpdateRecordSchema = Type.Object({
   fields: Type.Record(Type.String(), Type.Any(), {
     description: "Field values to update (same format as create_record)",
   }),
+  userOpenId: UserOpenId,
 });
 
 // ============ Tool Registration ============
@@ -544,59 +633,88 @@ export function registerFeishuBitableTools(api: OpenClawPluginApi) {
     return;
   }
 
-  type AccountAwareParams = { accountId?: string };
+  type AccountAwareParams = { accountId?: string; userOpenId?: string };
 
-  const getClient = (params: AccountAwareParams | undefined, defaultAccountId?: string) =>
-    createFeishuToolClient({ api, executeParams: params, defaultAccountId });
+  const getToolContext = (
+    params: AccountAwareParams | undefined,
+    options?: { defaultAccountId?: string; trustedRequesterOpenId?: string },
+  ) =>
+    createFeishuToolContext({
+      api,
+      executeParams: params,
+      defaultAccountId: options?.defaultAccountId,
+      trustedRequesterOpenId: options?.trustedRequesterOpenId,
+    });
 
   const registerBitableTool = <TParams extends AccountAwareParams>(params: {
     name: string;
     label: string;
     description: string;
     parameters: unknown;
-    execute: (args: { params: TParams; defaultAccountId?: string }) => Promise<unknown>;
+    execute: (args: {
+      params: TParams;
+      ctx: FeishuToolContext;
+      defaultAccountId?: string;
+    }) => Promise<unknown>;
   }) => {
     api.registerTool(
-      (ctx) => ({
-        name: params.name,
-        label: params.label,
-        description: params.description,
-        parameters: params.parameters,
-        async execute(_toolCallId, rawParams) {
-          try {
-            return json(
-              await params.execute({
-                params: rawParams as TParams,
-                defaultAccountId: ctx.agentAccountId,
-              }),
-            );
-          } catch (err) {
-            return json({ error: err instanceof Error ? err.message : String(err) });
-          }
-        },
-      }),
+      (toolCtx) => {
+        const trustedRequesterOpenId =
+          toolCtx.messageChannel === "feishu"
+            ? toolCtx.requesterSenderId?.trim() || undefined
+            : undefined;
+        return {
+          name: params.name,
+          label: params.label,
+          description: params.description,
+          parameters: params.parameters,
+          async execute(_toolCallId, rawParams) {
+            try {
+              const p = rawParams as TParams;
+              const ctx = await getToolContext(p, {
+                defaultAccountId: toolCtx.agentAccountId,
+                trustedRequesterOpenId,
+              });
+              return json(
+                await params.execute({
+                  params: p,
+                  ctx,
+                  defaultAccountId: toolCtx.agentAccountId,
+                }),
+              );
+            } catch (err) {
+              return json({ error: err instanceof Error ? err.message : String(err) });
+            }
+          },
+        };
+      },
       { name: params.name },
     );
   };
 
-  registerBitableTool<{ url: string; accountId?: string }>({
+  registerBitableTool<{ url: string; accountId?: string; userOpenId?: string }>({
     name: "feishu_bitable_get_meta",
     label: "Feishu Bitable Get Meta",
     description:
       "Parse a Bitable URL and get app_token, table_id, and table list. Use this first when given a /wiki/ or /base/ URL.",
     parameters: GetMetaSchema,
-    async execute({ params, defaultAccountId }) {
-      return getBitableMeta(getClient(params, defaultAccountId), params.url);
+    async execute({ params, ctx }) {
+      return getBitableMeta(ctx.client, params.url, ctx.requestOptions);
     },
   });
 
-  registerBitableTool<{ app_token: string; table_id: string; accountId?: string }>({
+  registerBitableTool<{
+    app_token: string;
+    table_id: string;
+    accountId?: string;
+    userOpenId?: string;
+  }>({
     name: "feishu_bitable_list_fields",
     label: "Feishu Bitable List Fields",
     description: "List all fields (columns) in a Bitable table with their types and properties",
     parameters: ListFieldsSchema,
-    async execute({ params, defaultAccountId }) {
-      return listFields(getClient(params, defaultAccountId), params.app_token, params.table_id);
+    async execute({ params, ctx }) {
+      return listFields(ctx.client, params.app_token, params.table_id, ctx.requestOptions);
     },
   });
 
@@ -606,18 +724,20 @@ export function registerFeishuBitableTools(api: OpenClawPluginApi) {
     page_size?: number;
     page_token?: string;
     accountId?: string;
+    userOpenId?: string;
   }>({
     name: "feishu_bitable_list_records",
     label: "Feishu Bitable List Records",
     description: "List records (rows) from a Bitable table with pagination support",
     parameters: ListRecordsSchema,
-    async execute({ params, defaultAccountId }) {
+    async execute({ params, ctx }) {
       return listRecords(
-        getClient(params, defaultAccountId),
+        ctx.client,
         params.app_token,
         params.table_id,
         params.page_size,
         params.page_token,
+        ctx.requestOptions,
       );
     },
   });
@@ -627,17 +747,19 @@ export function registerFeishuBitableTools(api: OpenClawPluginApi) {
     table_id: string;
     record_id: string;
     accountId?: string;
+    userOpenId?: string;
   }>({
     name: "feishu_bitable_get_record",
     label: "Feishu Bitable Get Record",
     description: "Get a single record by ID from a Bitable table",
     parameters: GetRecordSchema,
-    async execute({ params, defaultAccountId }) {
+    async execute({ params, ctx }) {
       return getRecord(
-        getClient(params, defaultAccountId),
+        ctx.client,
         params.app_token,
         params.table_id,
         params.record_id,
+        ctx.requestOptions,
       );
     },
   });
@@ -647,17 +769,19 @@ export function registerFeishuBitableTools(api: OpenClawPluginApi) {
     table_id: string;
     fields: Record<string, unknown>;
     accountId?: string;
+    userOpenId?: string;
   }>({
     name: "feishu_bitable_create_record",
     label: "Feishu Bitable Create Record",
     description: "Create a new record (row) in a Bitable table",
     parameters: CreateRecordSchema,
-    async execute({ params, defaultAccountId }) {
+    async execute({ params, ctx }) {
       return createRecord(
-        getClient(params, defaultAccountId),
+        ctx.client,
         params.app_token,
         params.table_id,
         params.fields,
+        ctx.requestOptions,
       );
     },
   });
@@ -668,32 +792,45 @@ export function registerFeishuBitableTools(api: OpenClawPluginApi) {
     record_id: string;
     fields: Record<string, unknown>;
     accountId?: string;
+    userOpenId?: string;
   }>({
     name: "feishu_bitable_update_record",
     label: "Feishu Bitable Update Record",
     description: "Update an existing record (row) in a Bitable table",
     parameters: UpdateRecordSchema,
-    async execute({ params, defaultAccountId }) {
+    async execute({ params, ctx }) {
       return updateRecord(
-        getClient(params, defaultAccountId),
+        ctx.client,
         params.app_token,
         params.table_id,
         params.record_id,
         params.fields,
+        ctx.requestOptions,
       );
     },
   });
 
-  registerBitableTool<{ name: string; folder_token?: string; accountId?: string }>({
+  registerBitableTool<{
+    name: string;
+    folder_token?: string;
+    accountId?: string;
+    userOpenId?: string;
+  }>({
     name: "feishu_bitable_create_app",
     label: "Feishu Bitable Create App",
     description: "Create a new Bitable (multidimensional table) application",
     parameters: CreateAppSchema,
-    async execute({ params, defaultAccountId }) {
-      return createApp(getClient(params, defaultAccountId), params.name, params.folder_token, {
-        debug: (msg) => api.logger.debug?.(msg),
-        warn: (msg) => api.logger.warn?.(msg),
-      });
+    async execute({ params, ctx }) {
+      return createApp(
+        ctx.client,
+        params.name,
+        params.folder_token,
+        {
+          debug: (msg) => api.logger.debug?.(msg),
+          warn: (msg) => api.logger.warn?.(msg),
+        },
+        ctx.requestOptions,
+      );
     },
   });
 
@@ -704,19 +841,21 @@ export function registerFeishuBitableTools(api: OpenClawPluginApi) {
     field_type: number;
     property?: Record<string, unknown>;
     accountId?: string;
+    userOpenId?: string;
   }>({
     name: "feishu_bitable_create_field",
     label: "Feishu Bitable Create Field",
     description: "Create a new field (column) in a Bitable table",
     parameters: CreateFieldSchema,
-    async execute({ params, defaultAccountId }) {
+    async execute({ params, ctx }) {
       return createField(
-        getClient(params, defaultAccountId),
+        ctx.client,
         params.app_token,
         params.table_id,
         params.field_name,
         params.field_type,
         params.property,
+        ctx.requestOptions,
       );
     },
   });

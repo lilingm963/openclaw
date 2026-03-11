@@ -170,6 +170,13 @@ const FeishuSharedConfigShape = {
   renderMode: RenderModeSchema,
   streaming: StreamingModeSchema,
   tools: FeishuToolsConfigSchema,
+  oauth: z
+    .object({
+      redirectUri: z.string().url().optional(),
+      scopes: z.array(z.string()).optional(),
+    })
+    .strict()
+    .optional(),
   replyInThread: ReplyInThreadSchema,
   reactionNotifications: ReactionNotificationModeSchema,
   typingIndicator: z.boolean().optional(),

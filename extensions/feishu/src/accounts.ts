@@ -227,6 +227,7 @@ export function resolveFeishuAccount(params: {
     verificationToken: creds?.verificationToken,
     domain: creds?.domain ?? "feishu",
     config: merged,
+    oauth: merged.oauth,
   };
 }
 

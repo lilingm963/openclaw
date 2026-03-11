@@ -9,9 +9,14 @@ import { registerFeishuWikiTools } from "./wiki.js";
 const createFeishuClientMock = vi.fn((account: { appId?: string } | undefined) => ({
   __appId: account?.appId,
 }));
+const getUserAccessTokenMock = vi.fn();
 
 vi.mock("./client.js", () => ({
   createFeishuClient: (account: { appId?: string } | undefined) => createFeishuClientMock(account),
+}));
+
+vi.mock("./oauth.js", () => ({
+  getUserAccessToken: (...args: unknown[]) => getUserAccessTokenMock(...args),
 }));
 
 function createConfig(params: {
@@ -52,6 +57,7 @@ function createConfig(params: {
 describe("feishu tool account routing", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getUserAccessTokenMock.mockResolvedValue(undefined);
   });
 
   test("wiki tool registers when first account disables it and routes to agentAccountId", async () => {
@@ -69,7 +75,7 @@ describe("feishu tool account routing", () => {
     expect(createFeishuClientMock.mock.calls.at(-1)?.[0]?.appId).toBe("app-b");
   });
 
-  test("wiki tool prefers configured defaultAccount over inherited default account context", async () => {
+  test("wiki tool prefers inherited account context over configured defaultAccount", async () => {
     const { api, resolveTool } = createToolFactoryHarness(
       createConfig({
         defaultAccount: "b",
@@ -82,7 +88,30 @@ describe("feishu tool account routing", () => {
     const tool = resolveTool("feishu_wiki", { agentAccountId: "a" });
     await tool.execute("call", { action: "search" });
 
-    expect(createFeishuClientMock.mock.calls.at(-1)?.[0]?.appId).toBe("app-b");
+    expect(createFeishuClientMock.mock.calls.at(-1)?.[0]?.appId).toBe("app-a");
+  });
+
+  test("wiki tool uses trusted Feishu requester as default userOpenId", async () => {
+    const { api, resolveTool } = createToolFactoryHarness(
+      createConfig({
+        toolsB: { wiki: true },
+      }),
+    );
+    registerFeishuWikiTools(api);
+
+    const tool = resolveTool("feishu_wiki", {
+      agentAccountId: "b",
+      messageChannel: "feishu",
+      requesterSenderId: "ou_123",
+    });
+    await tool.execute("call", { action: "search" });
+
+    expect(getUserAccessTokenMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountId: "b",
+        userOpenId: "ou_123",
+      }),
+    );
   });
 
   test("drive tool registers when first account disables it and routes to agentAccountId", async () => {
@@ -98,6 +127,29 @@ describe("feishu tool account routing", () => {
     await tool.execute("call", { action: "unknown_action" });
 
     expect(createFeishuClientMock.mock.calls.at(-1)?.[0]?.appId).toBe("app-b");
+  });
+
+  test("drive tool uses trusted Feishu requester as default userOpenId", async () => {
+    const { api, resolveTool } = createToolFactoryHarness(
+      createConfig({
+        toolsB: { drive: true },
+      }),
+    );
+    registerFeishuDriveTools(api);
+
+    const tool = resolveTool("feishu_drive", {
+      agentAccountId: "b",
+      messageChannel: "feishu",
+      requesterSenderId: "ou_123",
+    });
+    await tool.execute("call", { action: "unknown_action" });
+
+    expect(getUserAccessTokenMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountId: "b",
+        userOpenId: "ou_123",
+      }),
+    );
   });
 
   test("perm tool registers when only second account enables it and routes to agentAccountId", async () => {
@@ -125,5 +177,24 @@ describe("feishu tool account routing", () => {
 
     expect(createFeishuClientMock.mock.calls[0]?.[0]?.appId).toBe("app-b");
     expect(createFeishuClientMock.mock.calls[1]?.[0]?.appId).toBe("app-a");
+  });
+
+  test("bitable tool uses trusted Feishu requester as default userOpenId", async () => {
+    const { api, resolveTool } = createToolFactoryHarness(createConfig({}));
+    registerFeishuBitableTools(api);
+
+    const tool = resolveTool("feishu_bitable_get_meta", {
+      agentAccountId: "b",
+      messageChannel: "feishu",
+      requesterSenderId: "ou_123",
+    });
+    await tool.execute("call-ctx", { url: "invalid-url" });
+
+    expect(getUserAccessTokenMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountId: "b",
+        userOpenId: "ou_123",
+      }),
+    );
   });
 });

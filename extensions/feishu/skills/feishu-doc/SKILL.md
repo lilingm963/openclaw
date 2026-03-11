@@ -8,6 +8,21 @@ description: |
 
 Single tool `feishu_doc` with action parameter for all document operations, including table creation for Docx.
 
+## User Identity First
+
+- If the incoming Feishu message includes `sender_id`, `sender`, or `id` in metadata, treat that value as the requesting user's `open_id`.
+- For user-owned documents, always pass that value as `userOpenId` in `feishu_doc` calls so the request uses the stored OAuth `user_access_token`.
+- Do not claim the tool is unavailable or that you lack access before making the actual tool call. If `feishu_doc` is in the available tools list, call it directly.
+
+## CLI Fallback
+
+- If `feishu_doc` is missing from the available tools list but `exec` is available, do not ask the user to paste document content.
+- Use CLI fallback instead:
+
+```bash
+openclaw feishu_doc read ABC123def --user-open-id ou_xxx
+```
+
 ## Token Extraction
 
 From URL `https://xxx.feishu.cn/docx/ABC123def` → `doc_token` = `ABC123def`
@@ -17,7 +32,7 @@ From URL `https://xxx.feishu.cn/docx/ABC123def` → `doc_token` = `ABC123def`
 ### Read Document
 
 ```json
-{ "action": "read", "doc_token": "ABC123def" }
+{ "action": "read", "doc_token": "ABC123def", "userOpenId": "ou_xxx" }
 ```
 
 Returns: title, plain text content, block statistics. Check `hint` field - if present, structured content (tables, images) exists that requires `list_blocks`.
@@ -25,7 +40,12 @@ Returns: title, plain text content, block statistics. Check `hint` field - if pr
 ### Write Document (Replace All)
 
 ```json
-{ "action": "write", "doc_token": "ABC123def", "content": "# Title\n\nMarkdown content..." }
+{
+  "action": "write",
+  "doc_token": "ABC123def",
+  "content": "# Title\n\nMarkdown content...",
+  "userOpenId": "ou_xxx"
+}
 ```
 
 Replaces entire document with markdown content. Supports: headings, lists, code blocks, quotes, links, images (`![](url)` auto-uploaded), bold/italic/strikethrough.
@@ -35,7 +55,12 @@ Replaces entire document with markdown content. Supports: headings, lists, code 
 ### Append Content
 
 ```json
-{ "action": "append", "doc_token": "ABC123def", "content": "Additional content" }
+{
+  "action": "append",
+  "doc_token": "ABC123def",
+  "content": "Additional content",
+  "userOpenId": "ou_xxx"
+}
 ```
 
 Appends markdown to end of document.

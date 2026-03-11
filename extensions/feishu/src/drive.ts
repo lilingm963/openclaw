@@ -2,12 +2,14 @@ import type * as Lark from "@larksuiteoapi/node-sdk";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/feishu";
 import { listEnabledFeishuAccounts } from "./accounts.js";
 import { FeishuDriveSchema, type FeishuDriveParams } from "./drive-schema.js";
-import { createFeishuToolClient, resolveAnyEnabledFeishuToolsConfig } from "./tool-account.js";
+import { createFeishuToolContext, resolveAnyEnabledFeishuToolsConfig } from "./tool-account.js";
 import {
   jsonToolResult,
   toolExecutionErrorResult,
   unknownToolActionResult,
 } from "./tool-result.js";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK IRequestOptions uses opaque symbol keys
+type RequestOptions = any;
 
 // ============ Actions ============
 
@@ -30,12 +32,19 @@ async function getRootFolderToken(client: Lark.Client): Promise<string> {
   return token;
 }
 
-async function listFolder(client: Lark.Client, folderToken?: string) {
+export async function listFolder(
+  client: Lark.Client,
+  folderToken?: string,
+  options?: RequestOptions,
+) {
   // Filter out invalid folder_token values (empty, "0", etc.)
   const validFolderToken = folderToken && folderToken !== "0" ? folderToken : undefined;
-  const res = await client.drive.file.list({
-    params: validFolderToken ? { folder_token: validFolderToken } : {},
-  });
+  const res = await client.drive.file.list(
+    {
+      params: validFolderToken ? { folder_token: validFolderToken } : {},
+    },
+    options,
+  );
   if (res.code !== 0) {
     throw new Error(res.msg);
   }
@@ -55,11 +64,19 @@ async function listFolder(client: Lark.Client, folderToken?: string) {
   };
 }
 
-async function getFileInfo(client: Lark.Client, fileToken: string, folderToken?: string) {
+export async function getFileInfo(
+  client: Lark.Client,
+  fileToken: string,
+  folderToken?: string,
+  options?: RequestOptions,
+) {
   // Use list with folder_token to find file info
-  const res = await client.drive.file.list({
-    params: folderToken ? { folder_token: folderToken } : {},
-  });
+  const res = await client.drive.file.list(
+    {
+      params: folderToken ? { folder_token: folderToken } : {},
+    },
+    options,
+  );
   if (res.code !== 0) {
     throw new Error(res.msg);
   }
@@ -80,7 +97,12 @@ async function getFileInfo(client: Lark.Client, fileToken: string, folderToken?:
   };
 }
 
-async function createFolder(client: Lark.Client, name: string, folderToken?: string) {
+async function createFolder(
+  client: Lark.Client,
+  name: string,
+  folderToken?: string,
+  options?: RequestOptions,
+) {
   // Feishu supports using folder_token="0" as the root folder.
   // We *try* to resolve the real root token (explorer API), but fall back to "0"
   // because some tenants/apps return 400 for that explorer endpoint.
@@ -93,12 +115,15 @@ async function createFolder(client: Lark.Client, name: string, folderToken?: str
     }
   }
 
-  const res = await client.drive.file.createFolder({
-    data: {
-      name,
-      folder_token: effectiveToken,
+  const res = await client.drive.file.createFolder(
+    {
+      data: {
+        name,
+        folder_token: effectiveToken,
+      },
     },
-  });
+    options,
+  );
   if (res.code !== 0) {
     throw new Error(res.msg);
   }
@@ -109,22 +134,31 @@ async function createFolder(client: Lark.Client, name: string, folderToken?: str
   };
 }
 
-async function moveFile(client: Lark.Client, fileToken: string, type: string, folderToken: string) {
-  const res = await client.drive.file.move({
-    path: { file_token: fileToken },
-    data: {
-      type: type as
-        | "doc"
-        | "docx"
-        | "sheet"
-        | "bitable"
-        | "folder"
-        | "file"
-        | "mindnote"
-        | "slides",
-      folder_token: folderToken,
+async function moveFile(
+  client: Lark.Client,
+  fileToken: string,
+  type: string,
+  folderToken: string,
+  options?: RequestOptions,
+) {
+  const res = await client.drive.file.move(
+    {
+      path: { file_token: fileToken },
+      data: {
+        type: type as
+          | "doc"
+          | "docx"
+          | "sheet"
+          | "bitable"
+          | "folder"
+          | "file"
+          | "mindnote"
+          | "slides",
+        folder_token: folderToken,
+      },
     },
-  });
+    options,
+  );
   if (res.code !== 0) {
     throw new Error(res.msg);
   }
@@ -135,22 +169,30 @@ async function moveFile(client: Lark.Client, fileToken: string, type: string, fo
   };
 }
 
-async function deleteFile(client: Lark.Client, fileToken: string, type: string) {
-  const res = await client.drive.file.delete({
-    path: { file_token: fileToken },
-    params: {
-      type: type as
-        | "doc"
-        | "docx"
-        | "sheet"
-        | "bitable"
-        | "folder"
-        | "file"
-        | "mindnote"
-        | "slides"
-        | "shortcut",
+async function deleteFile(
+  client: Lark.Client,
+  fileToken: string,
+  type: string,
+  options?: RequestOptions,
+) {
+  const res = await client.drive.file.delete(
+    {
+      path: { file_token: fileToken },
+      params: {
+        type: type as
+          | "doc"
+          | "docx"
+          | "sheet"
+          | "bitable"
+          | "folder"
+          | "file"
+          | "mindnote"
+          | "slides"
+          | "shortcut",
+      },
     },
-  });
+    options,
+  );
   if (res.code !== 0) {
     throw new Error(res.msg);
   }
@@ -158,6 +200,37 @@ async function deleteFile(client: Lark.Client, fileToken: string, type: string) 
   return {
     success: true,
     task_id: res.data?.task_id,
+  };
+}
+
+async function copyFile(
+  client: Lark.Client,
+  fileToken: string,
+  type: string,
+  name?: string,
+  folderToken?: string,
+  options?: RequestOptions,
+) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cast to avoid SDK overload resolution issues with options param
+  const res = await (client.drive.file.copy as any)(
+    {
+      path: { file_token: fileToken },
+      data: {
+        type: type as "doc" | "docx" | "sheet" | "bitable" | "file" | "folder",
+        name,
+        folder_token: folderToken,
+      },
+    },
+    options,
+  );
+  if (res.code !== 0) {
+    throw new Error(res.msg);
+  }
+
+  return {
+    success: true,
+    file_token: res.data?.file_token,
+    url: res.data?.url,
   };
 }
 
@@ -181,36 +254,46 @@ export function registerFeishuDriveTools(api: OpenClawPluginApi) {
     return;
   }
 
-  type FeishuDriveExecuteParams = FeishuDriveParams & { accountId?: string };
+  type FeishuDriveExecuteParams = FeishuDriveParams & { accountId?: string; userOpenId?: string };
 
   api.registerTool(
     (ctx) => {
       const defaultAccountId = ctx.agentAccountId;
+      const trustedRequesterOpenId =
+        ctx.messageChannel === "feishu" ? ctx.requesterSenderId?.trim() || undefined : undefined;
       return {
         name: "feishu_drive",
         label: "Feishu Drive",
         description:
-          "Feishu cloud storage operations. Actions: list, info, create_folder, move, delete",
+          "Feishu cloud storage operations. Actions: list, info, create_folder, move, delete, copy",
         parameters: FeishuDriveSchema,
         async execute(_toolCallId, params) {
           const p = params as FeishuDriveExecuteParams;
           try {
-            const client = createFeishuToolClient({
+            const ctx = await createFeishuToolContext({
               api,
               executeParams: p,
               defaultAccountId,
+              trustedRequesterOpenId,
             });
+            const opts = ctx.requestOptions;
             switch (p.action) {
               case "list":
-                return jsonToolResult(await listFolder(client, p.folder_token));
+                return jsonToolResult(await listFolder(ctx.client, p.folder_token, opts));
               case "info":
-                return jsonToolResult(await getFileInfo(client, p.file_token));
+                return jsonToolResult(await getFileInfo(ctx.client, p.file_token, undefined, opts));
               case "create_folder":
-                return jsonToolResult(await createFolder(client, p.name, p.folder_token));
+                return jsonToolResult(await createFolder(ctx.client, p.name, p.folder_token, opts));
               case "move":
-                return jsonToolResult(await moveFile(client, p.file_token, p.type, p.folder_token));
+                return jsonToolResult(
+                  await moveFile(ctx.client, p.file_token, p.type, p.folder_token, opts),
+                );
               case "delete":
-                return jsonToolResult(await deleteFile(client, p.file_token, p.type));
+                return jsonToolResult(await deleteFile(ctx.client, p.file_token, p.type, opts));
+              case "copy":
+                return jsonToolResult(
+                  await copyFile(ctx.client, p.file_token, p.type, p.name, p.folder_token, opts),
+                );
               default:
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- exhaustive check fallback
                 return unknownToolActionResult((p as { action?: unknown }).action);

@@ -1,3 +1,4 @@
+import type { Client } from "@larksuiteoapi/node-sdk";
 import type { BaseProbeResult } from "openclaw/plugin-sdk/feishu";
 import type {
   FeishuConfigSchema,
@@ -33,6 +34,7 @@ export type ResolvedFeishuAccount = {
   domain: FeishuDomain;
   /** Merged config (top-level defaults + account-specific overrides) */
   config: FeishuConfig;
+  oauth?: { redirectUri?: string; scopes?: string[] };
 };
 
 export type FeishuIdType = "open_id" | "user_id" | "union_id" | "chat_id";
@@ -79,6 +81,24 @@ export type FeishuToolsConfig = {
   drive?: boolean;
   perm?: boolean;
   scopes?: boolean;
+};
+
+/**
+ * SDK request options (returned by `withUserAccessToken()` etc.),
+ * passed as 2nd arg to Lark SDK API calls.
+ */
+type LarkRequestOptions = {
+  lark?: Record<string | symbol, unknown>;
+  params?: Record<string, string>;
+  data?: Record<string, string>;
+  headers?: Record<string, string>;
+  path?: Record<string, string>;
+};
+
+export type FeishuToolContext = {
+  client: Client;
+  /** Options from `withUserAccessToken()`, passed as 2nd arg to SDK calls */
+  requestOptions?: LarkRequestOptions;
 };
 
 export type DynamicAgentCreationConfig = {

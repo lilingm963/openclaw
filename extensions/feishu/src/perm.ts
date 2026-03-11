@@ -2,13 +2,12 @@ import type * as Lark from "@larksuiteoapi/node-sdk";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/feishu";
 import { listEnabledFeishuAccounts } from "./accounts.js";
 import { FeishuPermSchema, type FeishuPermParams } from "./perm-schema.js";
-import { createFeishuToolClient, resolveAnyEnabledFeishuToolsConfig } from "./tool-account.js";
+import { createFeishuToolContext, resolveAnyEnabledFeishuToolsConfig } from "./tool-account.js";
 import {
   jsonToolResult,
   toolExecutionErrorResult,
   unknownToolActionResult,
 } from "./tool-result.js";
-
 type ListTokenType =
   | "doc"
   | "sheet"
@@ -40,14 +39,24 @@ type MemberType =
   | "groupid"
   | "wikispaceid";
 type PermType = "view" | "edit" | "full_access";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK IRequestOptions uses opaque symbol keys
+type RequestOptions = any;
 
 // ============ Actions ============
 
-async function listMembers(client: Lark.Client, token: string, type: string) {
-  const res = await client.drive.permissionMember.list({
-    path: { token },
-    params: { type: type as ListTokenType },
-  });
+async function listMembers(
+  client: Lark.Client,
+  token: string,
+  type: string,
+  options?: RequestOptions,
+) {
+  const res = await client.drive.permissionMember.list(
+    {
+      path: { token },
+      params: { type: type as ListTokenType },
+    },
+    options,
+  );
   if (res.code !== 0) {
     throw new Error(res.msg);
   }
@@ -70,16 +79,20 @@ async function addMember(
   memberType: string,
   memberId: string,
   perm: string,
+  options?: RequestOptions,
 ) {
-  const res = await client.drive.permissionMember.create({
-    path: { token },
-    params: { type: type as CreateTokenType, need_notification: false },
-    data: {
-      member_type: memberType as MemberType,
-      member_id: memberId,
-      perm: perm as PermType,
+  const res = await client.drive.permissionMember.create(
+    {
+      path: { token },
+      params: { type: type as CreateTokenType, need_notification: false },
+      data: {
+        member_type: memberType as MemberType,
+        member_id: memberId,
+        perm: perm as PermType,
+      },
     },
-  });
+    options,
+  );
   if (res.code !== 0) {
     throw new Error(res.msg);
   }
@@ -96,11 +109,15 @@ async function removeMember(
   type: string,
   memberType: string,
   memberId: string,
+  options?: RequestOptions,
 ) {
-  const res = await client.drive.permissionMember.delete({
-    path: { token, member_id: memberId },
-    params: { type: type as CreateTokenType, member_type: memberType as MemberType },
-  });
+  const res = await client.drive.permissionMember.delete(
+    {
+      path: { token, member_id: memberId },
+      params: { type: type as CreateTokenType, member_type: memberType as MemberType },
+    },
+    options,
+  );
   if (res.code !== 0) {
     throw new Error(res.msg);
   }
@@ -130,11 +147,13 @@ export function registerFeishuPermTools(api: OpenClawPluginApi) {
     return;
   }
 
-  type FeishuPermExecuteParams = FeishuPermParams & { accountId?: string };
+  type FeishuPermExecuteParams = FeishuPermParams & { accountId?: string; userOpenId?: string };
 
   api.registerTool(
     (ctx) => {
       const defaultAccountId = ctx.agentAccountId;
+      const trustedRequesterOpenId =
+        ctx.messageChannel === "feishu" ? ctx.requesterSenderId?.trim() || undefined : undefined;
       return {
         name: "feishu_perm",
         label: "Feishu Perm",
@@ -143,21 +162,31 @@ export function registerFeishuPermTools(api: OpenClawPluginApi) {
         async execute(_toolCallId, params) {
           const p = params as FeishuPermExecuteParams;
           try {
-            const client = createFeishuToolClient({
+            const ctx = await createFeishuToolContext({
               api,
               executeParams: p,
               defaultAccountId,
+              trustedRequesterOpenId,
             });
+            const opts = ctx.requestOptions;
             switch (p.action) {
               case "list":
-                return jsonToolResult(await listMembers(client, p.token, p.type));
+                return jsonToolResult(await listMembers(ctx.client, p.token, p.type, opts));
               case "add":
                 return jsonToolResult(
-                  await addMember(client, p.token, p.type, p.member_type, p.member_id, p.perm),
+                  await addMember(
+                    ctx.client,
+                    p.token,
+                    p.type,
+                    p.member_type,
+                    p.member_id,
+                    p.perm,
+                    opts,
+                  ),
                 );
               case "remove":
                 return jsonToolResult(
-                  await removeMember(client, p.token, p.type, p.member_type, p.member_id),
+                  await removeMember(ctx.client, p.token, p.type, p.member_type, p.member_id, opts),
                 );
               default:
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- exhaustive check fallback

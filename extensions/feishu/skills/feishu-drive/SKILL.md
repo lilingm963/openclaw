@@ -8,6 +8,12 @@ description: |
 
 Single tool `feishu_drive` for cloud storage operations.
 
+## User Identity First
+
+- If the incoming Feishu message includes `sender_id`, `sender`, or `id` in metadata, treat that value as the requesting user's `open_id`.
+- For user-owned cloud files, always pass that value as `userOpenId` in `feishu_drive` calls so the request uses the stored OAuth `user_access_token`.
+- Do not claim the tool is unavailable or that you lack access before making the actual tool call. If `feishu_drive` is in the available tools list, call it directly.
+
 ## Token Extraction
 
 From URL `https://xxx.feishu.cn/drive/folder/ABC123` → `folder_token` = `ABC123`
@@ -17,13 +23,13 @@ From URL `https://xxx.feishu.cn/drive/folder/ABC123` → `folder_token` = `ABC12
 ### List Folder Contents
 
 ```json
-{ "action": "list" }
+{ "action": "list", "userOpenId": "ou_xxx" }
 ```
 
 Root directory (no folder_token).
 
 ```json
-{ "action": "list", "folder_token": "fldcnXXX" }
+{ "action": "list", "folder_token": "fldcnXXX", "userOpenId": "ou_xxx" }
 ```
 
 Returns: files with token, name, type, url, timestamps.

@@ -1,5 +1,11 @@
 import { Type, type Static } from "@sinclair/typebox";
 
+const UserOpenId = Type.Optional(
+  Type.String({
+    description: "Feishu user open_id for user-identity API calls (uses OAuth user_access_token)",
+  }),
+);
+
 const TokenType = Type.Union([
   Type.Literal("doc"),
   Type.Literal("docx"),
@@ -31,6 +37,7 @@ export const FeishuPermSchema = Type.Union([
     action: Type.Literal("list"),
     token: Type.String({ description: "File token" }),
     type: TokenType,
+    userOpenId: UserOpenId,
   }),
   Type.Object({
     action: Type.Literal("add"),
@@ -39,6 +46,7 @@ export const FeishuPermSchema = Type.Union([
     member_type: MemberType,
     member_id: Type.String({ description: "Member ID (email, open_id, user_id, etc.)" }),
     perm: Permission,
+    userOpenId: UserOpenId,
   }),
   Type.Object({
     action: Type.Literal("remove"),
@@ -46,6 +54,7 @@ export const FeishuPermSchema = Type.Union([
     type: TokenType,
     member_type: MemberType,
     member_id: Type.String({ description: "Member ID to remove" }),
+    userOpenId: UserOpenId,
   }),
 ]);
 

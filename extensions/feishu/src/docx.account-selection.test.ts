@@ -1,11 +1,12 @@
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/feishu";
-import { describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { registerFeishuDocTools } from "./docx.js";
 import { createToolFactoryHarness } from "./tool-factory-test-harness.js";
 
 const createFeishuClientMock = vi.fn((creds: { appId?: string } | undefined) => ({
   __appId: creds?.appId,
 }));
+const getUserAccessTokenMock = vi.fn();
 
 vi.mock("./client.js", () => {
   return {
@@ -13,14 +14,24 @@ vi.mock("./client.js", () => {
   };
 });
 
+vi.mock("./oauth.js", () => ({
+  getUserAccessToken: (...args: unknown[]) => getUserAccessTokenMock(...args),
+}));
+
 // Patch SDK import so tool execution can run without network concerns.
 vi.mock("@larksuiteoapi/node-sdk", () => {
   return {
     default: {},
+    withUserAccessToken: vi.fn(),
   };
 });
 
 describe("feishu_doc account selection", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getUserAccessTokenMock.mockResolvedValue(undefined);
+  });
+
   function createDocEnabledConfig(): OpenClawPluginApi["config"] {
     return {
       channels: {
@@ -66,5 +77,76 @@ describe("feishu_doc account selection", () => {
     });
 
     expect(createFeishuClientMock.mock.calls.at(-1)?.[0]?.appId).toBe("app-a");
+  });
+
+  test("agentAccountId context overrides configured defaultAccount", async () => {
+    const cfg = {
+      channels: {
+        feishu: {
+          enabled: true,
+          defaultAccount: "a",
+          accounts: {
+            a: { appId: "app-a", appSecret: "sec-a", tools: { doc: true } }, // pragma: allowlist secret
+            b: { appId: "app-b", appSecret: "sec-b", tools: { doc: true } }, // pragma: allowlist secret
+          },
+        },
+      },
+    } as OpenClawPluginApi["config"];
+
+    const { api, resolveTool } = createToolFactoryHarness(cfg);
+    registerFeishuDocTools(api);
+
+    const docTool = resolveTool("feishu_doc", { agentAccountId: "b" });
+    await docTool.execute("call", { action: "list_blocks", doc_token: "d" });
+
+    expect(createFeishuClientMock.mock.calls.at(-1)?.[0]?.appId).toBe("app-b");
+  });
+
+  test("uses trusted Feishu requester as default userOpenId", async () => {
+    const cfg = createDocEnabledConfig();
+
+    const { api, resolveTool } = createToolFactoryHarness(cfg);
+    registerFeishuDocTools(api);
+
+    const docTool = resolveTool("feishu_doc", {
+      agentAccountId: "b",
+      messageChannel: "feishu",
+      requesterSenderId: "ou_123",
+    });
+
+    await docTool.execute("call", { action: "list_blocks", doc_token: "d" });
+
+    expect(getUserAccessTokenMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountId: "b",
+        userOpenId: "ou_123",
+      }),
+    );
+  });
+
+  test("explicit userOpenId overrides trusted Feishu requester", async () => {
+    const cfg = createDocEnabledConfig();
+
+    const { api, resolveTool } = createToolFactoryHarness(cfg);
+    registerFeishuDocTools(api);
+
+    const docTool = resolveTool("feishu_doc", {
+      agentAccountId: "b",
+      messageChannel: "feishu",
+      requesterSenderId: "ou_fallback",
+    });
+
+    await docTool.execute("call", {
+      action: "list_blocks",
+      doc_token: "d",
+      userOpenId: "ou_explicit",
+    });
+
+    expect(getUserAccessTokenMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountId: "b",
+        userOpenId: "ou_explicit",
+      }),
+    );
   });
 });

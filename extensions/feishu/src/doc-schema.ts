@@ -1,5 +1,11 @@
 import { Type, type Static } from "@sinclair/typebox";
 
+const UserOpenId = Type.Optional(
+  Type.String({
+    description: "Feishu user open_id for user-identity API calls (uses OAuth user_access_token)",
+  }),
+);
+
 const tableCreationProperties = {
   doc_token: Type.String({ description: "Document token" }),
   parent_block_id: Type.Optional(
@@ -18,6 +24,7 @@ export const FeishuDocSchema = Type.Union([
   Type.Object({
     action: Type.Literal("read"),
     doc_token: Type.String({ description: "Document token (extract from URL /docx/XXX)" }),
+    userOpenId: UserOpenId,
   }),
   Type.Object({
     action: Type.Literal("write"),
@@ -25,11 +32,13 @@ export const FeishuDocSchema = Type.Union([
     content: Type.String({
       description: "Markdown content to write (replaces entire document content)",
     }),
+    userOpenId: UserOpenId,
   }),
   Type.Object({
     action: Type.Literal("append"),
     doc_token: Type.String({ description: "Document token" }),
     content: Type.String({ description: "Markdown content to append to end of document" }),
+    userOpenId: UserOpenId,
   }),
   Type.Object({
     action: Type.Literal("insert"),
@@ -38,6 +47,7 @@ export const FeishuDocSchema = Type.Union([
     after_block_id: Type.String({
       description: "Insert content after this block ID. Use list_blocks to find block IDs.",
     }),
+    userOpenId: UserOpenId,
   }),
   Type.Object({
     action: Type.Literal("create"),
@@ -49,31 +59,37 @@ export const FeishuDocSchema = Type.Union([
           "Grant edit permission to the trusted requesting Feishu user from runtime context (default: true).",
       }),
     ),
+    userOpenId: UserOpenId,
   }),
   Type.Object({
     action: Type.Literal("list_blocks"),
     doc_token: Type.String({ description: "Document token" }),
+    userOpenId: UserOpenId,
   }),
   Type.Object({
     action: Type.Literal("get_block"),
     doc_token: Type.String({ description: "Document token" }),
     block_id: Type.String({ description: "Block ID (from list_blocks)" }),
+    userOpenId: UserOpenId,
   }),
   Type.Object({
     action: Type.Literal("update_block"),
     doc_token: Type.String({ description: "Document token" }),
     block_id: Type.String({ description: "Block ID (from list_blocks)" }),
     content: Type.String({ description: "New text content" }),
+    userOpenId: UserOpenId,
   }),
   Type.Object({
     action: Type.Literal("delete_block"),
     doc_token: Type.String({ description: "Document token" }),
     block_id: Type.String({ description: "Block ID" }),
+    userOpenId: UserOpenId,
   }),
   // Table creation (explicit structure)
   Type.Object({
     action: Type.Literal("create_table"),
     ...tableCreationProperties,
+    userOpenId: UserOpenId,
   }),
   Type.Object({
     action: Type.Literal("write_table_cells"),
@@ -83,6 +99,7 @@ export const FeishuDocSchema = Type.Union([
       description: "2D matrix values[row][col] to write into table cells",
       minItems: 1,
     }),
+    userOpenId: UserOpenId,
   }),
   Type.Object({
     action: Type.Literal("create_table_with_values"),
@@ -91,6 +108,7 @@ export const FeishuDocSchema = Type.Union([
       description: "2D matrix values[row][col] to write into table cells",
       minItems: 1,
     }),
+    userOpenId: UserOpenId,
   }),
   // Table row/column manipulation
   Type.Object({
@@ -100,6 +118,7 @@ export const FeishuDocSchema = Type.Union([
     row_index: Type.Optional(
       Type.Number({ description: "Row index to insert at (-1 for end, default: -1)" }),
     ),
+    userOpenId: UserOpenId,
   }),
   Type.Object({
     action: Type.Literal("insert_table_column"),
@@ -108,6 +127,7 @@ export const FeishuDocSchema = Type.Union([
     column_index: Type.Optional(
       Type.Number({ description: "Column index to insert at (-1 for end, default: -1)" }),
     ),
+    userOpenId: UserOpenId,
   }),
   Type.Object({
     action: Type.Literal("delete_table_rows"),
@@ -115,6 +135,7 @@ export const FeishuDocSchema = Type.Union([
     block_id: Type.String({ description: "Table block ID" }),
     row_start: Type.Number({ description: "Start row index (0-based)" }),
     row_count: Type.Optional(Type.Number({ description: "Number of rows to delete (default: 1)" })),
+    userOpenId: UserOpenId,
   }),
   Type.Object({
     action: Type.Literal("delete_table_columns"),
@@ -124,6 +145,7 @@ export const FeishuDocSchema = Type.Union([
     column_count: Type.Optional(
       Type.Number({ description: "Number of columns to delete (default: 1)" }),
     ),
+    userOpenId: UserOpenId,
   }),
   Type.Object({
     action: Type.Literal("merge_table_cells"),
@@ -133,6 +155,7 @@ export const FeishuDocSchema = Type.Union([
     row_end: Type.Number({ description: "End row index (exclusive)" }),
     column_start: Type.Number({ description: "Start column index" }),
     column_end: Type.Number({ description: "End column index (exclusive)" }),
+    userOpenId: UserOpenId,
   }),
   // Image / file upload
   Type.Object({
@@ -156,6 +179,7 @@ export const FeishuDocSchema = Type.Union([
         description: "Insert position (0-based index among siblings). Omit to append.",
       }),
     ),
+    userOpenId: UserOpenId,
   }),
   Type.Object({
     action: Type.Literal("upload_file"),
@@ -166,6 +190,7 @@ export const FeishuDocSchema = Type.Union([
       Type.String({ description: "Parent block ID (default: document root)" }),
     ),
     filename: Type.Optional(Type.String({ description: "Optional filename override" })),
+    userOpenId: UserOpenId,
   }),
   // Text color / style
   Type.Object({
@@ -176,6 +201,7 @@ export const FeishuDocSchema = Type.Union([
       description:
         'Text with color markup. Tags: [red], [green], [blue], [orange], [yellow], [purple], [grey], [bold], [bg:yellow]. Example: "Revenue [green]+15%[/green] YoY"',
     }),
+    userOpenId: UserOpenId,
   }),
 ]);
 

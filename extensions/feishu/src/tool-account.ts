@@ -1,9 +1,11 @@
 import type * as Lark from "@larksuiteoapi/node-sdk";
+import { withUserAccessToken } from "@larksuiteoapi/node-sdk";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/feishu";
 import { resolveFeishuAccount } from "./accounts.js";
 import { createFeishuClient } from "./client.js";
+import { getUserAccessToken } from "./oauth.js";
 import { resolveToolsConfig } from "./tools-config.js";
-import type { FeishuToolsConfig, ResolvedFeishuAccount } from "./types.js";
+import type { FeishuToolContext, FeishuToolsConfig, ResolvedFeishuAccount } from "./types.js";
 
 type AccountAwareParams = { accountId?: string };
 
@@ -33,8 +35,8 @@ export function resolveFeishuToolAccount(params: {
     cfg: params.api.config,
     accountId:
       normalizeOptionalAccountId(params.executeParams?.accountId) ??
-      readConfiguredDefaultAccountId(params.api.config) ??
-      normalizeOptionalAccountId(params.defaultAccountId),
+      normalizeOptionalAccountId(params.defaultAccountId) ??
+      readConfiguredDefaultAccountId(params.api.config),
   });
 }
 
@@ -44,6 +46,37 @@ export function createFeishuToolClient(params: {
   defaultAccountId?: string;
 }): Lark.Client {
   return createFeishuClient(resolveFeishuToolAccount(params));
+}
+
+/**
+ * Create a tool context with optional user_access_token support.
+ * If `userOpenId` is provided and a valid OAuth token is stored,
+ * returns requestOptions for user-identity API calls.
+ * Otherwise falls back to tenant_access_token (no requestOptions).
+ */
+export async function createFeishuToolContext(params: {
+  api: Pick<OpenClawPluginApi, "config">;
+  executeParams?: AccountAwareParams & { userOpenId?: string };
+  defaultAccountId?: string;
+  trustedRequesterOpenId?: string;
+}): Promise<FeishuToolContext> {
+  const account = resolveFeishuToolAccount(params);
+  const client = createFeishuClient(account);
+  const requestedUserOpenId =
+    params.executeParams?.userOpenId?.trim() || params.trustedRequesterOpenId?.trim() || undefined;
+
+  if (requestedUserOpenId) {
+    const token = await getUserAccessToken({
+      client,
+      accountId: account.accountId,
+      userOpenId: requestedUserOpenId,
+    });
+    if (token) {
+      return { client, requestOptions: withUserAccessToken(token) };
+    }
+  }
+
+  return { client };
 }
 
 export function resolveAnyEnabledFeishuToolsConfig(

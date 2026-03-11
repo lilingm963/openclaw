@@ -2,9 +2,8 @@ import type * as Lark from "@larksuiteoapi/node-sdk";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/feishu";
 import { listEnabledFeishuAccounts } from "./accounts.js";
 import { FeishuChatSchema, type FeishuChatParams } from "./chat-schema.js";
-import { createFeishuClient } from "./client.js";
+import { createFeishuToolContext } from "./tool-account.js";
 import { resolveToolsConfig } from "./tools-config.js";
-
 function json(data: unknown) {
   return {
     content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
@@ -12,8 +11,11 @@ function json(data: unknown) {
   };
 }
 
-async function getChatInfo(client: Lark.Client, chatId: string) {
-  const res = await client.im.chat.get({ path: { chat_id: chatId } });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK IRequestOptions uses opaque symbol keys
+type RequestOptions = any;
+
+async function getChatInfo(client: Lark.Client, chatId: string, options?: RequestOptions) {
+  const res = await client.im.chat.get({ path: { chat_id: chatId } }, options);
   if (res.code !== 0) {
     throw new Error(res.msg);
   }
@@ -42,16 +44,20 @@ async function getChatMembers(
   pageSize?: number,
   pageToken?: string,
   memberIdType?: "open_id" | "user_id" | "union_id",
+  options?: RequestOptions,
 ) {
   const page_size = pageSize ? Math.max(1, Math.min(100, pageSize)) : 50;
-  const res = await client.im.chatMembers.get({
-    path: { chat_id: chatId },
-    params: {
-      page_size,
-      page_token: pageToken,
-      member_id_type: memberIdType ?? "open_id",
+  const res = await client.im.chatMembers.get(
+    {
+      path: { chat_id: chatId },
+      params: {
+        page_size,
+        page_token: pageToken,
+        member_id_type: memberIdType ?? "open_id",
+      },
     },
-  });
+    options,
+  );
 
   if (res.code !== 0) {
     throw new Error(res.msg);
@@ -90,38 +96,48 @@ export function registerFeishuChatTools(api: OpenClawPluginApi) {
     return;
   }
 
-  const getClient = () => createFeishuClient(firstAccount);
+  type FeishuChatExecuteParams = FeishuChatParams & { userOpenId?: string };
 
   api.registerTool(
-    {
-      name: "feishu_chat",
-      label: "Feishu Chat",
-      description: "Feishu chat operations. Actions: members, info",
-      parameters: FeishuChatSchema,
-      async execute(_toolCallId, params) {
-        const p = params as FeishuChatParams;
-        try {
-          const client = getClient();
-          switch (p.action) {
-            case "members":
-              return json(
-                await getChatMembers(
-                  client,
-                  p.chat_id,
-                  p.page_size,
-                  p.page_token,
-                  p.member_id_type,
-                ),
-              );
-            case "info":
-              return json(await getChatInfo(client, p.chat_id));
-            default:
-              return json({ error: `Unknown action: ${String(p.action)}` });
+    (ctx) => {
+      const trustedRequesterOpenId =
+        ctx.messageChannel === "feishu" ? ctx.requesterSenderId?.trim() || undefined : undefined;
+      return {
+        name: "feishu_chat",
+        label: "Feishu Chat",
+        description: "Feishu chat operations. Actions: members, info",
+        parameters: FeishuChatSchema,
+        async execute(_toolCallId, params) {
+          const p = params as FeishuChatExecuteParams;
+          try {
+            const ctx = await createFeishuToolContext({
+              api,
+              executeParams: p,
+              trustedRequesterOpenId,
+            });
+            const opts = ctx.requestOptions;
+            switch (p.action) {
+              case "members":
+                return json(
+                  await getChatMembers(
+                    ctx.client,
+                    p.chat_id,
+                    p.page_size,
+                    p.page_token,
+                    p.member_id_type,
+                    opts,
+                  ),
+                );
+              case "info":
+                return json(await getChatInfo(ctx.client, p.chat_id, opts));
+              default:
+                return json({ error: `Unknown action: ${String(p.action)}` });
+            }
+          } catch (err) {
+            return json({ error: err instanceof Error ? err.message : String(err) });
           }
-        } catch (err) {
-          return json({ error: err instanceof Error ? err.message : String(err) });
-        }
-      },
+        },
+      };
     },
     { name: "feishu_chat" },
   );

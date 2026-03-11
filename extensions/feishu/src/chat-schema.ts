@@ -19,6 +19,11 @@ export const FeishuChatSchema = Type.Object({
       description: "Member ID type (default: open_id)",
     }),
   ),
+  userOpenId: Type.Optional(
+    Type.String({
+      description: "Feishu user open_id for user-identity API calls (uses OAuth user_access_token)",
+    }),
+  ),
 });
 
 export type FeishuChatParams = Static<typeof FeishuChatSchema>;
