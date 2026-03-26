@@ -848,19 +848,20 @@ export async function uploadFileBlock(
   }
 
   // Upload file to Feishu drive
-  const fileRes = await client.drive.media.uploadAll(
-    {
-      data: {
-        file_name: upload.fileName,
-        parent_type: "docx_file",
-        parent_node: docToken,
-        size: upload.buffer.length,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK file type
-        file: upload.buffer as any,
-      },
+  const uploadReq = {
+    data: {
+      file_name: upload.fileName,
+      parent_type: "docx_file" as const,
+      parent_node: docToken,
+      size: upload.buffer.length,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK file type
+      file: upload.buffer as any,
     },
-    options,
-  );
+  };
+  const fileRes =
+    options !== undefined
+      ? await client.drive.media.uploadAll(uploadReq, options)
+      : await client.drive.media.uploadAll(uploadReq);
 
   const fileToken = fileRes?.file_token;
   if (!fileToken) {
@@ -958,18 +959,18 @@ export async function createDoc(
       requesterPermissionSkippedReason = "trusted requester identity unavailable";
     } else {
       try {
-        await client.drive.permissionMember.create(
-          {
-            path: { token: docToken },
-            params: { type: "docx", need_notification: false },
-            data: {
-              member_type: "openid",
-              member_id: requesterOpenId,
-              perm: requesterPermType,
-            },
+        const permReq = {
+          path: { token: docToken },
+          params: { type: "docx" as const, need_notification: false },
+          data: {
+            member_type: "openid" as const,
+            member_id: requesterOpenId,
+            perm: requesterPermType,
           },
-          requestOptions,
-        );
+        };
+        await (requestOptions !== undefined
+          ? client.drive.permissionMember.create(permReq, requestOptions)
+          : client.drive.permissionMember.create(permReq));
         requesterPermissionAdded = true;
       } catch (err) {
         requesterPermissionError = err instanceof Error ? err.message : String(err);

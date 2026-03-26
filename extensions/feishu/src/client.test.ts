@@ -43,6 +43,8 @@ const registerFeishuBitableToolsMock = vi.hoisted(() => vi.fn());
 const feishuPluginMock = vi.hoisted(() => ({ id: "feishu-test-plugin" }));
 const setFeishuRuntimeMock = vi.hoisted(() => vi.fn());
 const registerFeishuSubagentHooksMock = vi.hoisted(() => vi.fn());
+const registerFeishuToolCliMock = vi.hoisted(() => vi.fn());
+const registerFeishuAuthCommandMock = vi.hoisted(() => vi.fn());
 
 let createFeishuClient: CreateFeishuClient;
 let createFeishuWSClient: CreateFeishuWSClient;
@@ -89,6 +91,14 @@ vi.mock("./runtime.js", () => ({
 
 vi.mock("./subagent-hooks.js", () => ({
   registerFeishuSubagentHooks: registerFeishuSubagentHooksMock,
+}));
+
+vi.mock("./tool-cli.js", () => ({
+  registerFeishuToolCli: registerFeishuToolCliMock,
+}));
+
+vi.mock("./auth-command.js", () => ({
+  registerFeishuAuthCommand: registerFeishuAuthCommandMock,
 }));
 
 const baseAccount: ResolvedFeishuAccount = {
