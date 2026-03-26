@@ -46,7 +46,18 @@ if [ "${#format_files[@]}" -gt 0 ]; then
   "$RUN_NODE_TOOL" oxfmt --write --no-error-on-unmatched-pattern "${format_files[@]}"
 fi
 
-git add -- "${files[@]}"
+# Filter out files that are now gitignored (can happen during merges when
+# .gitignore itself changes). Without this, `set -e` aborts the hook on the
+# non-zero exit code from `git add` when it encounters ignored paths.
+addable_files=()
+for f in "${files[@]}"; do
+  if ! git check-ignore -q -- "$f" 2>/dev/null; then
+    addable_files+=("$f")
+  fi
+done
+if [ "${#addable_files[@]}" -gt 0 ]; then
+  git add -- "${addable_files[@]}"
+fi
 
 # This hook is also exercised from lightweight temp repos in tests, where the
 # staged-file safety behavior matters but the full OpenClaw workspace does not
