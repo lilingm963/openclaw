@@ -10,6 +10,8 @@ import type * as Lark from "@larksuiteoapi/node-sdk";
 import { cleanBlocksForDescendant } from "./docx-table-ops.js";
 
 export const BATCH_SIZE = 1000; // Feishu API limit per request
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK IRequestOptions uses opaque symbol keys
+type RequestOptions = any;
 
 type Logger = { info?: (msg: string) => void };
 
@@ -61,6 +63,7 @@ async function insertBatch(
   firstLevelBlockIds: string[],
   parentBlockId: string = docToken,
   index: number = -1,
+  options?: RequestOptions,
 ): Promise<any[]> {
   const descendants = cleanBlocksForDescendant(blocks);
 
@@ -68,14 +71,17 @@ async function insertBatch(
     return [];
   }
 
-  const res = await client.docx.documentBlockDescendant.create({
-    path: { document_id: docToken, block_id: parentBlockId },
-    data: {
-      children_id: firstLevelBlockIds,
-      descendants,
-      index,
+  const res = await client.docx.documentBlockDescendant.create(
+    {
+      path: { document_id: docToken, block_id: parentBlockId },
+      data: {
+        children_id: firstLevelBlockIds,
+        descendants,
+        index,
+      },
     },
-  });
+    options,
+  );
 
   if (res.code !== 0) {
     throw new Error(`${res.msg} (code: ${res.code})`);
@@ -109,6 +115,7 @@ export async function insertBlocksInBatches(
   logger?: Logger,
   parentBlockId: string = docToken,
   startIndex: number = -1,
+  options?: RequestOptions,
 ): Promise<{ children: any[]; skipped: string[] }> {
   const allChildren: any[] = [];
 
@@ -174,6 +181,7 @@ export async function insertBlocksInBatches(
       batch.firstLevelIds,
       parentBlockId,
       currentIndex,
+      options,
     );
     allChildren.push(...children);
 

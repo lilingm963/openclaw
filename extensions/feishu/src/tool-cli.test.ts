@@ -1,3 +1,4 @@
+import { Command } from "commander";
 import { describe, expect, it } from "vitest";
 import type { OpenClawConfig } from "../../../src/config/config.js";
 import { __testing } from "./tool-cli.js";
@@ -87,5 +88,27 @@ describe("resolveFeishuCliAccountId", () => {
     });
 
     expect(resolved).toBe("learning");
+  });
+});
+
+describe("Feishu CLI fallback command coverage", () => {
+  it("registers drive write subcommands so exec fallback can create and move folders/files", () => {
+    const program = new Command();
+    __testing.registerFeishuDriveCli(program, makeConfig());
+
+    const drive = program.commands.find((command) => command.name() === "feishu_drive");
+    expect(drive?.commands.map((command) => command.name())).toEqual(
+      expect.arrayContaining(["list", "info", "create_folder", "move", "delete", "copy"]),
+    );
+  });
+
+  it("registers doc write subcommands so exec fallback can create and update documents", () => {
+    const program = new Command();
+    __testing.registerFeishuDocCli(program, makeConfig());
+
+    const doc = program.commands.find((command) => command.name() === "feishu_doc");
+    expect(doc?.commands.map((command) => command.name())).toEqual(
+      expect.arrayContaining(["read", "create", "write", "append", "upload_file"]),
+    );
   });
 });

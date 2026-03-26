@@ -85,9 +85,11 @@ describe("feishu-auth command", () => {
     expect(urlMatch?.[0]).toBeTruthy();
 
     const url = new URL(urlMatch![0]);
-    expect(url.searchParams.get("scope")).toBe("drive:drive wiki:wiki docx:document bitable:app");
+    expect(url.searchParams.get("scope")).toBe(
+      "drive:drive wiki:wiki docx:document docx:document.block:convert bitable:app",
+    );
     expect(result.text).toContain(
-      "默认请求 scope: drive:drive wiki:wiki docx:document bitable:app",
+      "默认请求 scope: drive:drive wiki:wiki docx:document docx:document.block:convert bitable:app",
     );
   });
 
@@ -120,9 +122,13 @@ describe("feishu-auth command", () => {
         scope: "drive:drive wiki:wiki docx:document",
       }),
     );
-    expect(result.text).toContain("请求 scope: drive:drive wiki:wiki docx:document bitable:app");
+    expect(result.text).toContain(
+      "请求 scope: drive:drive wiki:wiki docx:document docx:document.block:convert bitable:app",
+    );
     expect(result.text).toContain("返回 scope: drive:drive wiki:wiki docx:document");
-    expect(result.text).toContain("⚠️ 缺失 scope: bitable:app");
-    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("missing=[bitable:app]"));
+    expect(result.text).toContain("⚠️ 缺失 scope: docx:document.block:convert bitable:app");
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.stringContaining("missing=[docx:document.block:convert, bitable:app]"),
+    );
   });
 });

@@ -8,6 +8,8 @@
  */
 
 import type * as Lark from "@larksuiteoapi/node-sdk";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK IRequestOptions uses opaque symbol keys
+type RequestOptions = any;
 
 // ============ Table Utilities ============
 
@@ -205,11 +207,15 @@ export async function insertTableRow(
   docToken: string,
   blockId: string,
   rowIndex: number = -1,
+  options?: RequestOptions,
 ) {
-  const res = await client.docx.documentBlock.patch({
-    path: { document_id: docToken, block_id: blockId },
-    data: { insert_table_row: { row_index: rowIndex } },
-  });
+  const res = await client.docx.documentBlock.patch(
+    {
+      path: { document_id: docToken, block_id: blockId },
+      data: { insert_table_row: { row_index: rowIndex } },
+    },
+    options,
+  );
   if (res.code !== 0) {
     throw new Error(res.msg);
   }
@@ -221,11 +227,15 @@ export async function insertTableColumn(
   docToken: string,
   blockId: string,
   columnIndex: number = -1,
+  options?: RequestOptions,
 ) {
-  const res = await client.docx.documentBlock.patch({
-    path: { document_id: docToken, block_id: blockId },
-    data: { insert_table_column: { column_index: columnIndex } },
-  });
+  const res = await client.docx.documentBlock.patch(
+    {
+      path: { document_id: docToken, block_id: blockId },
+      data: { insert_table_column: { column_index: columnIndex } },
+    },
+    options,
+  );
   if (res.code !== 0) {
     throw new Error(res.msg);
   }
@@ -238,11 +248,17 @@ export async function deleteTableRows(
   blockId: string,
   rowStart: number,
   rowCount: number = 1,
+  options?: RequestOptions,
 ) {
-  const res = await client.docx.documentBlock.patch({
-    path: { document_id: docToken, block_id: blockId },
-    data: { delete_table_rows: { row_start_index: rowStart, row_end_index: rowStart + rowCount } },
-  });
+  const res = await client.docx.documentBlock.patch(
+    {
+      path: { document_id: docToken, block_id: blockId },
+      data: {
+        delete_table_rows: { row_start_index: rowStart, row_end_index: rowStart + rowCount },
+      },
+    },
+    options,
+  );
   if (res.code !== 0) {
     throw new Error(res.msg);
   }
@@ -255,16 +271,20 @@ export async function deleteTableColumns(
   blockId: string,
   columnStart: number,
   columnCount: number = 1,
+  options?: RequestOptions,
 ) {
-  const res = await client.docx.documentBlock.patch({
-    path: { document_id: docToken, block_id: blockId },
-    data: {
-      delete_table_columns: {
-        column_start_index: columnStart,
-        column_end_index: columnStart + columnCount,
+  const res = await client.docx.documentBlock.patch(
+    {
+      path: { document_id: docToken, block_id: blockId },
+      data: {
+        delete_table_columns: {
+          column_start_index: columnStart,
+          column_end_index: columnStart + columnCount,
+        },
       },
     },
-  });
+    options,
+  );
   if (res.code !== 0) {
     throw new Error(res.msg);
   }
@@ -279,18 +299,22 @@ export async function mergeTableCells(
   rowEnd: number,
   columnStart: number,
   columnEnd: number,
+  options?: RequestOptions,
 ) {
-  const res = await client.docx.documentBlock.patch({
-    path: { document_id: docToken, block_id: blockId },
-    data: {
-      merge_table_cells: {
-        row_start_index: rowStart,
-        row_end_index: rowEnd,
-        column_start_index: columnStart,
-        column_end_index: columnEnd,
+  const res = await client.docx.documentBlock.patch(
+    {
+      path: { document_id: docToken, block_id: blockId },
+      data: {
+        merge_table_cells: {
+          row_start_index: rowStart,
+          row_end_index: rowEnd,
+          column_start_index: columnStart,
+          column_end_index: columnEnd,
+        },
       },
     },
-  });
+    options,
+  );
   if (res.code !== 0) {
     throw new Error(res.msg);
   }

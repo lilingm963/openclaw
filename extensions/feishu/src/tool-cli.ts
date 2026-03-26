@@ -1,3 +1,4 @@
+import { promises as fs } from "node:fs";
 import type { Command } from "commander";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/feishu";
 import { resolveAgentIdByWorkspacePath } from "../../../src/agents/agent-scope.js";
@@ -5,9 +6,9 @@ import type { OpenClawConfig } from "../../../src/config/config.js";
 import { buildChannelAccountBindings } from "../../../src/routing/bindings.js";
 import { listEnabledFeishuAccounts } from "./accounts.js";
 import { getBitableMeta, listFields, listRecords } from "./bitable.js";
-import { readDoc } from "./docx.js";
-import { getFileInfo, listFolder } from "./drive.js";
-import { createFeishuToolContext } from "./tool-account.js";
+import { appendDoc, createDoc, readDoc, uploadFileBlock, writeDoc } from "./docx.js";
+import { copyFile, createFolder, deleteFile, getFileInfo, listFolder, moveFile } from "./drive.js";
+import { createFeishuToolContext, resolveFeishuToolAccount } from "./tool-account.js";
 import { getNode, listNodes, listSpaces } from "./wiki.js";
 
 type CliIdentityOptions = {
@@ -18,6 +19,25 @@ type CliIdentityOptions = {
 type CliBitableListRecordsOptions = CliIdentityOptions & {
   pageSize?: string | number;
   pageToken?: string;
+};
+
+type CliContentOptions = {
+  content?: string;
+  contentFile?: string;
+};
+
+type CliDriveMutationOptions = CliIdentityOptions & {
+  type?: string;
+  name?: string;
+};
+
+type CliDocMutationOptions = CliIdentityOptions & CliContentOptions;
+
+type CliDocUploadFileOptions = CliIdentityOptions & {
+  url?: string;
+  filePath?: string;
+  filename?: string;
+  parentBlockId?: string;
 };
 
 function printJson(value: unknown) {
@@ -85,7 +105,7 @@ async function createCliContext(params: {
     cwd: params.cwd,
     explicitAccountId: params.options?.accountId,
   });
-  return createFeishuToolContext({
+  const toolContext = await createFeishuToolContext({
     api: { config: params.config },
     executeParams: {
       accountId,
@@ -93,6 +113,31 @@ async function createCliContext(params: {
     },
     defaultAccountId: accountId,
   });
+  return { ...toolContext, accountId };
+}
+
+function getCliMediaMaxBytes(config: OpenClawConfig, accountId?: string): number {
+  const resolved = resolveFeishuToolAccount({
+    api: { config },
+    executeParams: accountId ? { accountId } : undefined,
+    defaultAccountId: accountId,
+  });
+  return (resolved.config.mediaMaxMb ?? 30) * 1024 * 1024;
+}
+
+async function resolveCliContent(options: CliContentOptions): Promise<string> {
+  const inlineContent = options.content;
+  const filePath = normalizeOptionalString(options.contentFile);
+  if (inlineContent && filePath) {
+    throw new Error("Provide only one of --content or --content-file");
+  }
+  if (typeof inlineContent === "string") {
+    return inlineContent;
+  }
+  if (filePath) {
+    return fs.readFile(filePath, "utf8");
+  }
+  throw new Error("One of --content or --content-file is required");
 }
 
 async function runCliAction(action: () => Promise<unknown>) {
@@ -162,6 +207,89 @@ function registerFeishuDocCli(program: Command, config: OpenClawConfig) {
       return readDoc(ctx.client, docToken, ctx.requestOptions);
     }),
   );
+
+  addIdentityOptions(
+    doc
+      .command("create <title> [folderToken]")
+      .description("Create a Feishu doc, optionally inside a drive folder"),
+  ).action(async (title: string, folderToken: string | undefined, options: CliIdentityOptions) =>
+    runCliAction(async () => {
+      const ctx = await createCliContext({ config, options });
+      return createDoc(
+        ctx.client,
+        title,
+        normalizeOptionalString(folderToken),
+        { requesterOpenId: normalizeOptionalString(options.userOpenId) },
+        ctx.requestOptions,
+      );
+    }),
+  );
+
+  addIdentityOptions(
+    doc
+      .command("write <docToken>")
+      .option("--content <markdown>", "Markdown content")
+      .option("--content-file <path>", "Read markdown content from a UTF-8 file")
+      .description("Replace a Feishu doc with markdown content"),
+  ).action(async (docToken: string, options: CliDocMutationOptions) =>
+    runCliAction(async () => {
+      const ctx = await createCliContext({ config, options });
+      const content = await resolveCliContent(options);
+      return writeDoc(
+        ctx.client,
+        docToken,
+        content,
+        getCliMediaMaxBytes(config, ctx.accountId),
+        undefined,
+        ctx.requestOptions,
+      );
+    }),
+  );
+
+  addIdentityOptions(
+    doc
+      .command("append <docToken>")
+      .option("--content <markdown>", "Markdown content")
+      .option("--content-file <path>", "Read markdown content from a UTF-8 file")
+      .description("Append markdown content to a Feishu doc"),
+  ).action(async (docToken: string, options: CliDocMutationOptions) =>
+    runCliAction(async () => {
+      const ctx = await createCliContext({ config, options });
+      const content = await resolveCliContent(options);
+      return appendDoc(
+        ctx.client,
+        docToken,
+        content,
+        getCliMediaMaxBytes(config, ctx.accountId),
+        undefined,
+        ctx.requestOptions,
+      );
+    }),
+  );
+
+  addIdentityOptions(
+    doc
+      .command("upload_file <docToken>")
+      .option("--url <url>", "Remote file URL to fetch and upload")
+      .option("--file-path <path>", "Local file path to upload")
+      .option("--filename <name>", "Optional filename override")
+      .option("--parent-block-id <id>", "Optional parent block for placement")
+      .description("Upload a file for a Feishu doc workflow"),
+  ).action(async (docToken: string, options: CliDocUploadFileOptions) =>
+    runCliAction(async () => {
+      const ctx = await createCliContext({ config, options });
+      return uploadFileBlock(
+        ctx.client,
+        docToken,
+        getCliMediaMaxBytes(config, ctx.accountId),
+        normalizeOptionalString(options.url),
+        normalizeOptionalString(options.filePath),
+        normalizeOptionalString(options.parentBlockId),
+        normalizeOptionalString(options.filename),
+        ctx.requestOptions,
+      );
+    }),
+  );
 }
 
 function registerFeishuDriveCli(program: Command, config: OpenClawConfig) {
@@ -183,6 +311,78 @@ function registerFeishuDriveCli(program: Command, config: OpenClawConfig) {
       const ctx = await createCliContext({ config, options });
       return getFileInfo(ctx.client, fileToken, undefined, ctx.requestOptions);
     }),
+  );
+
+  addIdentityOptions(
+    drive
+      .command("create_folder <name> [folderToken]")
+      .description("Create a drive folder, optionally inside a parent folder"),
+  ).action(async (name: string, folderToken: string | undefined, options: CliIdentityOptions) =>
+    runCliAction(async () => {
+      const ctx = await createCliContext({ config, options });
+      return createFolder(
+        ctx.client,
+        name,
+        normalizeOptionalString(folderToken),
+        ctx.requestOptions,
+      );
+    }),
+  );
+
+  addIdentityOptions(
+    drive
+      .command("move <fileToken> <folderToken>")
+      .requiredOption("--type <type>", "Drive file type")
+      .description("Move a drive file into a folder"),
+  ).action(async (fileToken: string, folderToken: string, options: CliDriveMutationOptions) =>
+    runCliAction(async () => {
+      const ctx = await createCliContext({ config, options });
+      return moveFile(
+        ctx.client,
+        fileToken,
+        normalizeOptionalString(options.type) ?? "docx",
+        folderToken,
+        ctx.requestOptions,
+      );
+    }),
+  );
+
+  addIdentityOptions(
+    drive
+      .command("delete <fileToken>")
+      .requiredOption("--type <type>", "Drive file type")
+      .description("Delete a drive file"),
+  ).action(async (fileToken: string, options: CliDriveMutationOptions) =>
+    runCliAction(async () => {
+      const ctx = await createCliContext({ config, options });
+      return deleteFile(
+        ctx.client,
+        fileToken,
+        normalizeOptionalString(options.type) ?? "docx",
+        ctx.requestOptions,
+      );
+    }),
+  );
+
+  addIdentityOptions(
+    drive
+      .command("copy <fileToken> [folderToken]")
+      .requiredOption("--type <type>", "Drive file type")
+      .option("--name <name>", "Optional copied file name")
+      .description("Copy a drive file"),
+  ).action(
+    async (fileToken: string, folderToken: string | undefined, options: CliDriveMutationOptions) =>
+      runCliAction(async () => {
+        const ctx = await createCliContext({ config, options });
+        return copyFile(
+          ctx.client,
+          fileToken,
+          normalizeOptionalString(options.type) ?? "docx",
+          normalizeOptionalString(options.name),
+          normalizeOptionalString(folderToken),
+          ctx.requestOptions,
+        );
+      }),
   );
 }
 
@@ -253,4 +453,6 @@ export function registerFeishuToolCli(api: OpenClawPluginApi): void {
 
 export const __testing = {
   resolveFeishuCliAccountId,
+  registerFeishuDocCli,
+  registerFeishuDriveCli,
 };

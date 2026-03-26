@@ -13,14 +13,21 @@ type RequestOptions = any;
 
 // ============ Actions ============
 
-async function getRootFolderToken(client: Lark.Client): Promise<string> {
+async function getRootFolderToken(client: Lark.Client, options?: RequestOptions): Promise<string> {
   // Use generic HTTP client to call the root folder meta API
-  // as it's not directly exposed in the SDK
+  // as it's not directly exposed in the SDK. We still need the same auth mode
+  // as the surrounding tool call, so derive headers through formatPayload.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing internal SDK property
   const domain = (client as any).domain ?? "https://open.feishu.cn";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing internal SDK method
+  const formatted =
+    typeof (client as any).formatPayload === "function"
+      ? await (client as any).formatPayload(undefined, options)
+      : undefined;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing internal SDK property
   const res = (await (client as any).httpInstance.get(
     `${domain}/open-apis/drive/explorer/v2/root_folder/meta`,
+    { headers: formatted?.headers },
   )) as { code: number; msg?: string; data?: { token?: string } };
   if (res.code !== 0) {
     throw new Error(res.msg ?? "Failed to get root folder");
@@ -97,7 +104,7 @@ export async function getFileInfo(
   };
 }
 
-async function createFolder(
+export async function createFolder(
   client: Lark.Client,
   name: string,
   folderToken?: string,
@@ -109,7 +116,7 @@ async function createFolder(
   let effectiveToken = folderToken && folderToken !== "0" ? folderToken : "0";
   if (effectiveToken === "0") {
     try {
-      effectiveToken = await getRootFolderToken(client);
+      effectiveToken = await getRootFolderToken(client, options);
     } catch {
       // ignore and keep "0"
     }
@@ -134,7 +141,7 @@ async function createFolder(
   };
 }
 
-async function moveFile(
+export async function moveFile(
   client: Lark.Client,
   fileToken: string,
   type: string,
@@ -169,7 +176,7 @@ async function moveFile(
   };
 }
 
-async function deleteFile(
+export async function deleteFile(
   client: Lark.Client,
   fileToken: string,
   type: string,
@@ -203,7 +210,7 @@ async function deleteFile(
   };
 }
 
-async function copyFile(
+export async function copyFile(
   client: Lark.Client,
   fileToken: string,
   type: string,

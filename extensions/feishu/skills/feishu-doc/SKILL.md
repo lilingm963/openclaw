@@ -21,6 +21,9 @@ Single tool `feishu_doc` with action parameter for all document operations, incl
 
 ```bash
 openclaw feishu_doc read ABC123def --user-open-id ou_xxx
+openclaw feishu_doc create "整理后的文档" fldcnXYZ --user-open-id ou_xxx
+openclaw feishu_doc write ABC123def --content-file /tmp/doc.md --user-open-id ou_xxx
+openclaw feishu_doc upload_file ABC123def --file-path /tmp/report.pdf --filename report.pdf --user-open-id ou_xxx
 ```
 
 ## Token Extraction

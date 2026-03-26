@@ -14,6 +14,17 @@ Single tool `feishu_drive` for cloud storage operations.
 - For user-owned cloud files, always pass that value as `userOpenId` in `feishu_drive` calls so the request uses the stored OAuth `user_access_token`.
 - Do not claim the tool is unavailable or that you lack access before making the actual tool call. If `feishu_drive` is in the available tools list, call it directly.
 
+## CLI Fallback
+
+- If `feishu_drive` is missing from the available tools list but `exec` is available, do not stop at read-only claims.
+- Use CLI fallback for write operations too:
+
+```bash
+openclaw feishu_drive create_folder "项目资料" --user-open-id ou_xxx
+openclaw feishu_drive move doccnABC fldcnXYZ --type docx --user-open-id ou_xxx
+openclaw feishu_drive copy doccnABC fldcnXYZ --type docx --name "副本" --user-open-id ou_xxx
+```
+
 ## Token Extraction
 
 From URL `https://xxx.feishu.cn/drive/folder/ABC123` → `folder_token` = `ABC123`

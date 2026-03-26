@@ -8,6 +8,7 @@ export const DEFAULT_FEISHU_OAUTH_SCOPES = [
   "drive:drive",
   "wiki:wiki",
   "docx:document",
+  "docx:document.block:convert",
   "bitable:app",
 ] as const;
 

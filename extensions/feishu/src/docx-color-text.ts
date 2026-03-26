@@ -12,6 +12,8 @@
  */
 
 import type * as Lark from "@larksuiteoapi/node-sdk";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK IRequestOptions uses opaque symbol keys
+type RequestOptions = any;
 
 // Feishu text_color values (1-7)
 const TEXT_COLOR: Record<string, number> = {
@@ -117,6 +119,7 @@ export async function updateColorText(
   docToken: string,
   blockId: string,
   content: string,
+  options?: RequestOptions,
 ) {
   const segments = parseColorMarkup(content);
 
@@ -132,10 +135,13 @@ export async function updateColorText(
     },
   }));
 
-  const res = await client.docx.documentBlock.patch({
-    path: { document_id: docToken, block_id: blockId },
-    data: { update_text_elements: { elements } },
-  });
+  const res = await client.docx.documentBlock.patch(
+    {
+      path: { document_id: docToken, block_id: blockId },
+      data: { update_text_elements: { elements } },
+    },
+    options,
+  );
 
   if (res.code !== 0) {
     throw new Error(res.msg);
