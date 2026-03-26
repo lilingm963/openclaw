@@ -39,7 +39,7 @@ vi.mock("./oauth.js", () => ({
 
 vi.mock("@larksuiteoapi/node-sdk", () => ({
   default: {},
-  withUserAccessToken: (...args: unknown[]) => withUserAccessTokenMock(...args),
+  withUserAccessToken: (...args: [string]) => withUserAccessTokenMock(...args),
 }));
 
 function createDocEnabledConfig(): OpenClawPluginApi["config"] {

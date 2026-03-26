@@ -79,6 +79,12 @@ describe("feishu-auth command", () => {
       commandBody: "/feishu-auth",
       config: createConfig(),
       accountId: "main",
+      requestConversationBinding: async () => ({
+        status: "error" as const,
+        message: "not supported",
+      }),
+      detachConversationBinding: async () => ({ removed: false }),
+      getCurrentConversationBinding: async () => null,
     });
 
     const urlMatch = result.text?.match(/https:\/\/\S+/);
@@ -110,6 +116,12 @@ describe("feishu-auth command", () => {
       config: createConfig(),
       accountId: "main",
       from: "feishu:ou_user_123",
+      requestConversationBinding: async () => ({
+        status: "error" as const,
+        message: "not supported",
+      }),
+      detachConversationBinding: async () => ({ removed: false }),
+      getCurrentConversationBinding: async () => null,
     });
 
     expect(createFeishuClientMock).toHaveBeenCalled();

@@ -1,7 +1,7 @@
 import type * as Lark from "@larksuiteoapi/node-sdk";
 import { withUserAccessToken } from "@larksuiteoapi/node-sdk";
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/feishu";
-import { resolveFeishuAccount } from "./accounts.js";
+import type { OpenClawPluginApi } from "../runtime-api.js";
+import { resolveFeishuRuntimeAccount } from "./accounts.js";
 import { createFeishuClient } from "./client.js";
 import { getUserAccessToken } from "./oauth.js";
 import { resolveToolsConfig } from "./tools-config.js";
@@ -31,7 +31,7 @@ export function resolveFeishuToolAccount(params: {
   if (!params.api.config) {
     throw new Error("Feishu config unavailable");
   }
-  return resolveFeishuAccount({
+  return resolveFeishuRuntimeAccount({
     cfg: params.api.config,
     accountId:
       normalizeOptionalAccountId(params.executeParams?.accountId) ??

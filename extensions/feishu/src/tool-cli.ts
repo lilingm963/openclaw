@@ -1,9 +1,7 @@
 import { promises as fs } from "node:fs";
 import type { Command } from "commander";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/feishu";
-import { resolveAgentIdByWorkspacePath } from "../../../src/agents/agent-scope.js";
-import type { OpenClawConfig } from "../../../src/config/config.js";
-import { buildChannelAccountBindings } from "../../../src/routing/bindings.js";
+import type { OpenClawConfig } from "openclaw/plugin-sdk/feishu";
 import { listEnabledFeishuAccounts } from "./accounts.js";
 import { getBitableMeta, listFields, listRecords } from "./bitable.js";
 import { appendDoc, createDoc, readDoc, uploadFileBlock, writeDoc } from "./docx.js";
@@ -66,14 +64,6 @@ function parseOptionalPositiveInt(
   return parsed;
 }
 
-function resolveBoundFeishuAccountId(cfg: OpenClawConfig, cwd: string): string | undefined {
-  const agentId = resolveAgentIdByWorkspacePath(cfg, cwd);
-  if (!agentId) {
-    return undefined;
-  }
-  return buildChannelAccountBindings(cfg).get("feishu")?.get(agentId)?.[0];
-}
-
 function resolveFeishuCliAccountId(params: {
   cfg: OpenClawConfig;
   cwd?: string;
@@ -82,11 +72,6 @@ function resolveFeishuCliAccountId(params: {
   const explicit = normalizeOptionalString(params.explicitAccountId);
   if (explicit) {
     return explicit;
-  }
-  const cwd = normalizeOptionalString(params.cwd) ?? process.cwd();
-  const bound = resolveBoundFeishuAccountId(params.cfg, cwd);
-  if (bound) {
-    return bound;
   }
   const enabledAccounts = listEnabledFeishuAccounts(params.cfg);
   if (enabledAccounts.length === 1) {
